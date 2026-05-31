@@ -28,12 +28,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (userData) => {
-    setUser({ _id: userData._id, username: userData.username });
+    setUser({ _id: userData._id, email: userData.email });
     setToken(userData.token);
     localStorage.setItem('plantTrackerToken', userData.token);
     localStorage.setItem('plantTrackerUser', JSON.stringify({
       _id: userData._id,
-      username: userData.username,
+      email: userData.email,
     }));
   };
 

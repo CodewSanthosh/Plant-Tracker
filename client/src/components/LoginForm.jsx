@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 
 const LoginForm = () => {
   const [isRegister, setIsRegister] = useState(false);
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,7 @@ const LoginForm = () => {
     e.preventDefault();
     setError('');
 
-    if (!username.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim()) {
       setError('Please fill in all fields');
       return;
     }
@@ -29,9 +29,9 @@ const LoginForm = () => {
     try {
       let data;
       if (isRegister) {
-        data = await registerUser(username.trim(), password);
+        data = await registerUser(email.trim(), password);
       } else {
-        data = await loginUser(username.trim(), password);
+        data = await loginUser(email.trim(), password);
       }
       login(data);
     } catch (err) {
@@ -60,17 +60,17 @@ const LoginForm = () => {
 
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="username">
-            Username <span className="required">*</span>
+          <label htmlFor="email">
+            Email <span className="required">*</span>
           </label>
           <input
-            type="text"
-            id="username"
+            type="email"
+            id="email"
             className="form-input"
-            placeholder="Enter your username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
+            placeholder="Enter your email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
           />
         </div>
 

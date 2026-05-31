@@ -37,8 +37,8 @@ const getPublicIdFromUrl = (url) => {
 // @access  Private
 const getPlants = async (req, res) => {
   try {
-    const plants = await Plant.find({}).sort({ createdAt: -1 });
-    const count = await Plant.countDocuments();
+    const plants = await Plant.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const count = await Plant.countDocuments({ user: req.user._id });
 
     res.json({ plants, count });
   } catch (error) {
@@ -62,6 +62,7 @@ const addPlant = async (req, res) => {
     const cloudResult = await uploadToCloudinary(req.file.buffer);
 
     const plant = await Plant.create({
+      user: req.user._id,
       plantName,
       image: cloudResult.secure_url,
       region,
@@ -69,7 +70,7 @@ const addPlant = async (req, res) => {
       plantedBy,
     });
 
-    const count = await Plant.countDocuments();
+    const count = await Plant.countDocuments({ user: req.user._id });
 
     res.status(201).json({ plant, count });
   } catch (error) {
@@ -89,6 +90,11 @@ const deletePlant = async (req, res) => {
       return res.status(404).json({ message: 'Plant not found' });
     }
 
+    // Ensure the user owns the plant
+    if (plant.user.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'Not authorized to delete this plant' });
+    }
+
     // Delete image from Cloudinary
     const publicId = getPublicIdFromUrl(plant.image);
     if (publicId) {
@@ -100,7 +106,7 @@ const deletePlant = async (req, res) => {
     }
 
     await Plant.findByIdAndDelete(req.params.id);
-    const count = await Plant.countDocuments();
+    const count = await Plant.countDocuments({ user: req.user._id });
 
     res.json({ message: 'Plant removed', count });
   } catch (error) {
@@ -114,7 +120,7 @@ const deletePlant = async (req, res) => {
 // @access  Private
 const getPlantCount = async (req, res) => {
   try {
-    const count = await Plant.countDocuments();
+    const count = await Plant.countDocuments({ user: req.user._id });
     res.json({ count });
   } catch (error) {
     console.error('Count error:', error.message);

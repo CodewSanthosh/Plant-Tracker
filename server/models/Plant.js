@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const plantSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+    ref: 'User',
+  },
   plantName: {
     type: String,
     required: [true, 'Plant name is required'],

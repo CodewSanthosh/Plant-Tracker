@@ -25,7 +25,7 @@ const Navbar = ({ plantCount }) => {
 
         {user && (
           <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-            Hi, {user.username}
+            Hi, {user.email}
           </span>
         )}
 
