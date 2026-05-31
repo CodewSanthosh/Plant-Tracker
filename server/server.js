@@ -17,6 +17,9 @@ connectDB();
 
 const app = express();
 
+// Trust reverse proxy (required for Render)
+app.set('trust proxy', 1);
+
 // ========== SECURITY MIDDLEWARE ==========
 
 // Helmet — secure HTTP headers (relaxed CSP for images from Cloudinary)
