@@ -64,6 +64,13 @@ export const deletePlant = async (id) => {
   return data;
 };
 
+export const addPlantUpdate = async (id, formData) => {
+  const { data } = await api.post(`/plants/${id}/updates`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
 export const getPlantCount = async () => {
   const { data } = await api.get('/plants/count');
   return data;

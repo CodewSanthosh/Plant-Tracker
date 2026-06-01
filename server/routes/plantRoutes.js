@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { getPlants, addPlant, deletePlant, getPlantCount } = require('../controllers/plantController');
+const { getPlants, addPlant, deletePlant, getPlantCount, addPlantUpdate } = require('../controllers/plantController');
 const { protect } = require('../middleware/auth');
 
 // Use memory storage — file buffer is uploaded to Cloudinary in the controller
@@ -28,6 +28,7 @@ const upload = multer({
 // All routes are protected
 router.get('/', protect, getPlants);
 router.post('/', protect, upload.single('image'), addPlant);
+router.post('/:id/updates', protect, upload.single('image'), addPlantUpdate);
 router.delete('/:id', protect, deletePlant);
 router.get('/count', protect, getPlantCount);
 

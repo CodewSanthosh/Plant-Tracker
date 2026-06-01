@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const PlantCard = ({ plant, onDelete, index }) => {
+const PlantCard = ({ plant, onDelete, index, onViewTimeline }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -72,6 +72,14 @@ const PlantCard = ({ plant, onDelete, index }) => {
             </button>
           </div>
         </div>
+
+        <button 
+          className="btn btn-outline btn-block" 
+          onClick={() => onViewTimeline(plant)}
+          style={{ marginTop: '15px' }}
+        >
+          View Timeline & Updates
+        </button>
       </div>
 
       {/* Delete Confirmation Dialog */}

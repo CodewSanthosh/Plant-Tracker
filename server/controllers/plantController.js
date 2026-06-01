@@ -52,7 +52,7 @@ const getPlants = async (req, res) => {
 // @access  Private
 const addPlant = async (req, res) => {
   try {
-    const { plantName, region, plantedDate, plantedBy } = req.body;
+    const { plantName, region, plantedDate, plantedBy, lat, lng } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ message: 'Please upload a plant image' });
@@ -61,6 +61,8 @@ const addPlant = async (req, res) => {
     // Upload to Cloudinary
     const cloudResult = await uploadToCloudinary(req.file.buffer);
 
+    const location = (lat && lng) ? { lat: Number(lat), lng: Number(lng) } : undefined;
+
     const plant = await Plant.create({
       user: req.user._id,
       plantName,
@@ -68,6 +70,7 @@ const addPlant = async (req, res) => {
       region,
       plantedDate,
       plantedBy,
+      location,
     });
 
     const count = await Plant.countDocuments({ user: req.user._id });
@@ -128,4 +131,44 @@ const getPlantCount = async (req, res) => {
   }
 };
 
-module.exports = { getPlants, addPlant, deletePlant, getPlantCount };
+// @desc    Add a growth update to a plant
+// @route   POST /api/plants/:id/updates
+// @access  Private
+const addPlantUpdate = async (req, res) => {
+  try {
+    const { notes, date } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ message: 'Please upload an image for the update' });
+    }
+
+    const plant = await Plant.findById(req.params.id);
+
+    if (!plant) {
+      return res.status(404).json({ message: 'Plant not found' });
+    }
+
+    if (plant.user.toString() !== req.user._id.toString()) {
+      return res.status(401).json({ message: 'Not authorized to update this plant' });
+    }
+
+    // Upload update image to Cloudinary
+    const cloudResult = await uploadToCloudinary(req.file.buffer);
+
+    // Add update to the array
+    plant.updates.push({
+      image: cloudResult.secure_url,
+      notes,
+      date,
+    });
+
+    await plant.save();
+    
+    res.status(201).json(plant);
+  } catch (error) {
+    console.error('Add plant update error:', error.message);
+    res.status(500).json({ message: 'Server error adding plant update' });
+  }
+};
+
+module.exports = { getPlants, addPlant, deletePlant, getPlantCount, addPlantUpdate };

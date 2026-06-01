@@ -1,23 +1,18 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { addPlant } from '../services/api';
+import { LocationPicker } from './MapComponents';
 
 const PlantForm = ({ onPlantAdded }) => {
-  const [formData, setFormData] = useState({
-    plantName: '',
-    region: '',
-    plantedDate: '',
-    plantedBy: '',
-  });
+  const [plantName, setPlantName] = useState('');
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [region, setRegion] = useState('');
+  const [plantedDate, setPlantedDate] = useState('');
+  const [plantedBy, setPlantedBy] = useState('');
+  const [location, setLocation] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -33,14 +28,13 @@ const PlantForm = ({ onPlantAdded }) => {
   };
 
   const resetForm = () => {
-    setFormData({
-      plantName: '',
-      region: '',
-      plantedDate: '',
-      plantedBy: '',
-    });
+    setPlantName('');
     setImage(null);
     setImagePreview(null);
+    setRegion('');
+    setPlantedDate('');
+    setPlantedBy('');
+    setLocation(null);
   };
 
   const handleSubmit = async (e) => {
@@ -48,25 +42,8 @@ const PlantForm = ({ onPlantAdded }) => {
     setError('');
     setSuccess('');
 
-    // Validate
-    if (!formData.plantName.trim()) {
-      setError('Plant name is required');
-      return;
-    }
-    if (!image) {
-      setError('Please upload a plant image');
-      return;
-    }
-    if (!formData.region.trim()) {
-      setError('Planted region/place is required');
-      return;
-    }
-    if (!formData.plantedDate) {
-      setError('Date of plantation is required');
-      return;
-    }
-    if (!formData.plantedBy.trim()) {
-      setError('Person who planted is required');
+    if (!plantName.trim() || !image || !region.trim() || !plantedDate || !plantedBy.trim() || !location) {
+      setError('Please fill in all fields and pick a location on the map');
       return;
     }
 
@@ -74,22 +51,22 @@ const PlantForm = ({ onPlantAdded }) => {
 
     try {
       const data = new FormData();
-      data.append('plantName', formData.plantName.trim());
+      data.append('plantName', plantName.trim());
       data.append('image', image);
-      data.append('region', formData.region.trim());
-      data.append('plantedDate', formData.plantedDate);
-      data.append('plantedBy', formData.plantedBy.trim());
+      data.append('region', region.trim());
+      data.append('plantedDate', plantedDate);
+      data.append('plantedBy', plantedBy.trim());
+      data.append('lat', location.lat);
+      data.append('lng', location.lng);
 
       const result = await addPlant(data);
       setSuccess('🌱 Plant added successfully!');
       resetForm();
 
-      // Notify parent
       if (onPlantAdded) {
         onPlantAdded(result.plant, result.count);
       }
 
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to add plant');
@@ -108,11 +85,10 @@ const PlantForm = ({ onPlantAdded }) => {
           <input
             type="text"
             id="plantName"
-            name="plantName"
             className="form-input"
             placeholder="e.g., Neem Tree"
-            value={formData.plantName}
-            onChange={handleInputChange}
+            value={plantName}
+            onChange={(e) => setPlantName(e.target.value)}
           />
         </div>
 
@@ -123,11 +99,10 @@ const PlantForm = ({ onPlantAdded }) => {
           <input
             type="text"
             id="region"
-            name="region"
             className="form-input"
             placeholder="e.g., Hyderabad, Telangana"
-            value={formData.region}
-            onChange={handleInputChange}
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
           />
         </div>
 
@@ -138,10 +113,9 @@ const PlantForm = ({ onPlantAdded }) => {
           <input
             type="date"
             id="plantedDate"
-            name="plantedDate"
             className="form-input"
-            value={formData.plantedDate}
-            onChange={handleInputChange}
+            value={plantedDate}
+            onChange={(e) => setPlantedDate(e.target.value)}
           />
         </div>
 
@@ -152,12 +126,21 @@ const PlantForm = ({ onPlantAdded }) => {
           <input
             type="text"
             id="plantedBy"
-            name="plantedBy"
             className="form-input"
-            placeholder="e.g., John Doe"
-            value={formData.plantedBy}
-            onChange={handleInputChange}
+            value={plantedBy}
+            onChange={(e) => setPlantedBy(e.target.value)}
+            placeholder="e.g. John Doe, Community Group"
           />
+        </div>
+
+        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+          <label>
+            Plantation Location <span className="required">*</span>
+          </label>
+          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '0 0 10px 0' }}>
+            Click on the map to drop a pin at the exact plantation location.
+          </p>
+          <LocationPicker location={location} setLocation={setLocation} />
         </div>
 
         <div className="form-group">

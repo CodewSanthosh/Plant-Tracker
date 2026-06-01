@@ -26,9 +26,20 @@ const plantSchema = new mongoose.Schema({
   },
   plantedBy: {
     type: String,
-    required: [true, 'Person who planted is required'],
-    trim: true,
+    required: [true, 'Planted by is required'],
   },
+  location: {
+    lat: { type: Number },
+    lng: { type: Number }
+  },
+  updates: [
+    {
+      image: { type: String, required: true },
+      notes: { type: String },
+      date: { type: Date, required: true },
+      createdAt: { type: Date, default: Date.now }
+    }
+  ]
 }, {
   timestamps: true,
 });

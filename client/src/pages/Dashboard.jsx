@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/Navbar';
 import PlantForm from '../components/PlantForm';
 import PlantGrid from '../components/PlantGrid';
+import { PlantMap } from '../components/MapComponents';
+import PlantTimelineModal from '../components/PlantTimelineModal';
 import { getPlants, deletePlant } from '../services/api';
 
 const Dashboard = () => {
@@ -9,6 +11,8 @@ const Dashboard = () => {
   const [plantCount, setPlantCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState('grid');
+  const [activeTimelinePlant, setActiveTimelinePlant] = useState(null);
 
   const fetchPlants = useCallback(async () => {
     try {
@@ -43,6 +47,11 @@ const Dashboard = () => {
     }
   };
 
+  const handleUpdateSuccess = (updatedPlant) => {
+    setPlants(prev => prev.map(p => p._id === updatedPlant._id ? updatedPlant : p));
+    setActiveTimelinePlant(updatedPlant);
+  };
+
   return (
     <div id="dashboard">
       <Navbar plantCount={plantCount} />
@@ -63,7 +72,7 @@ const Dashboard = () => {
         </section>
 
         <section className="plant-grid-section">
-          <h3 className="plant-grid-section__title">
+          <h3 className="plant-grid-section__title" style={{ display: 'flex', alignItems: 'center' }}>
             <span>🌳</span> All Planted Trees
             {plantCount > 0 && (
               <span style={{
@@ -75,17 +84,50 @@ const Dashboard = () => {
                 ({plantCount} {plantCount === 1 ? 'plant' : 'plants'})
               </span>
             )}
+            
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
+              <button 
+                className={`btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setViewMode('grid')}
+                style={{ padding: '6px 12px', fontSize: '0.9rem' }}
+              >
+                Grid View
+              </button>
+              <button 
+                className={`btn ${viewMode === 'map' ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setViewMode('map')}
+                style={{ padding: '6px 12px', fontSize: '0.9rem' }}
+              >
+                Map View
+              </button>
+            </div>
           </h3>
 
           {error && <div className="form-error" style={{ marginBottom: 'var(--space-4)' }}>{error}</div>}
 
-          <PlantGrid
-            plants={plants}
-            onDelete={handleDeletePlant}
-            loading={loading}
-          />
+          {viewMode === 'grid' ? (
+            <PlantGrid
+              plants={plants}
+              onDelete={handleDeletePlant}
+              onViewTimeline={setActiveTimelinePlant}
+              loading={loading}
+            />
+          ) : (
+            <PlantMap 
+              plants={plants} 
+              onPlantClick={setActiveTimelinePlant}
+            />
+          )}
         </section>
       </main>
+
+      {activeTimelinePlant && (
+        <PlantTimelineModal 
+          plant={activeTimelinePlant} 
+          onClose={() => setActiveTimelinePlant(null)}
+          onUpdateSuccess={handleUpdateSuccess}
+        />
+      )}
     </div>
   );
 };
