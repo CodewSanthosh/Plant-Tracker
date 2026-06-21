@@ -45,12 +45,19 @@ const registerUser = async (req, res) => {
 // @access  Public
 const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     // Find user by email
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
+      // If the login screen specified a role (Admin / User), it must match the account
+      if (role && user.role !== role) {
+        return res.status(403).json({
+          message: `This account is not registered as ${role === 'admin' ? 'an Admin' : 'a User'}.`,
+        });
+      }
+
       res.json({
         _id: user._id,
         email: user.email,

@@ -3,12 +3,21 @@ import { loginUser, registerUser } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const LoginForm = () => {
+  // Step 1 → choose role (admin / user). Step 2 → enter credentials.
+  const [role, setRole] = useState(null);
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+
+  const resetState = () => {
+    setEmail('');
+    setPassword('');
+    setError('');
+    setIsRegister(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,9 +38,10 @@ const LoginForm = () => {
     try {
       let data;
       if (isRegister) {
+        // Registration only creates regular users
         data = await registerUser(email.trim(), password);
       } else {
-        data = await loginUser(email.trim(), password);
+        data = await loginUser(email.trim(), password, role);
       }
       login(data);
     } catch (err) {
@@ -44,17 +54,62 @@ const LoginForm = () => {
     }
   };
 
+  // ---------- STEP 1: Role selection ----------
+  if (!role) {
+    return (
+      <div className="login-card glass-strong" id="login-card">
+        <div className="login-card__header">
+          <span className="login-card__icon">🌱</span>
+          <h2 className="login-card__title">Plant Tracker</h2>
+          <p className="login-card__subtitle">How would you like to sign in?</p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', marginTop: 'var(--space-6)' }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            id="choose-admin"
+            onClick={() => { setRole('admin'); resetState(); }}
+            style={{ padding: 'var(--space-4)', fontSize: '1rem' }}
+          >
+            👑 Continue as Admin
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            id="choose-user"
+            onClick={() => { setRole('user'); resetState(); }}
+            style={{ padding: 'var(--space-4)', fontSize: '1rem' }}
+          >
+            🌿 Continue as User
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 'var(--space-5)' }}>
+          Admins can add and manage trees. Users can view all trees and add growth updates.
+        </p>
+      </div>
+    );
+  }
+
+  // ---------- STEP 2: Credentials ----------
+  const isAdminLogin = role === 'admin';
+
   return (
     <div className="login-card glass-strong" id="login-card">
       <div className="login-card__header">
-        <span className="login-card__icon">🌱</span>
+        <span className="login-card__icon">{isAdminLogin ? '👑' : '🌿'}</span>
         <h2 className="login-card__title">
-          {isRegister ? 'Create Account' : 'Welcome Back'}
+          {isRegister
+            ? 'Create Account'
+            : isAdminLogin ? 'Admin Sign In' : 'User Sign In'}
         </h2>
         <p className="login-card__subtitle">
           {isRegister
-            ? 'Set up your Plant Tracker account'
-            : 'Sign in to your Plant Tracker'}
+            ? 'Set up your Plant Tracker user account'
+            : isAdminLogin
+              ? 'Sign in with your admin credentials'
+              : 'Sign in to view trees and post updates'}
         </p>
       </div>
 
@@ -104,16 +159,28 @@ const LoginForm = () => {
         </button>
       </form>
 
+      {/* Only regular users can self-register; admins are provisioned separately */}
+      {!isAdminLogin && (
+        <div className="form-toggle">
+          {isRegister ? 'Already have an account? ' : "Don't have an account? "}
+          <button
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setError('');
+            }}
+            id="toggle-auth-mode"
+          >
+            {isRegister ? 'Sign In' : 'Register'}
+          </button>
+        </div>
+      )}
+
       <div className="form-toggle">
-        {isRegister ? 'Already have an account? ' : "Don't have an account? "}
         <button
-          onClick={() => {
-            setIsRegister(!isRegister);
-            setError('');
-          }}
-          id="toggle-auth-mode"
+          onClick={() => { setRole(null); resetState(); }}
+          id="back-to-role"
         >
-          {isRegister ? 'Sign In' : 'Register'}
+          ← Back
         </button>
       </div>
     </div>

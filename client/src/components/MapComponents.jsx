@@ -111,7 +111,7 @@ export const PlantMap = ({ plants, onPlantClick }) => {
                   style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px', marginBottom: '8px' }} 
                 />
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '14px', color: 'var(--color-primary)' }}>{plant.plantName}</h3>
-                <p style={{ margin: '0 0 4px 0', fontSize: '12px' }}>{plant.region}</p>
+                {plant.region && <p style={{ margin: '0 0 4px 0', fontSize: '12px' }}>{plant.region}</p>}
                 <p style={{ margin: '0', fontSize: '11px', color: '#666' }}>
                   Planted: {new Date(plant.plantedDate).toLocaleDateString()}
                 </p>

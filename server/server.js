@@ -28,11 +28,21 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'blob:'],
+      // Allow Cloudinary images + OpenStreetMap map tiles (Leaflet loads tiles as <img>)
+      imgSrc: [
+        "'self'",
+        'data:',
+        'blob:',
+        'https://res.cloudinary.com',
+        'https://*.tile.openstreetmap.org',
+        'https://*.basemaps.cartocdn.com',
+        'https://unpkg.com',
+      ],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-      connectSrc: ["'self'"],
+      // Allow tile/asset requests made via fetch/XHR as well
+      connectSrc: ["'self'", 'https://*.tile.openstreetmap.org', 'https://unpkg.com'],
     },
   },
 }));

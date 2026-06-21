@@ -45,10 +45,12 @@ const PlantCard = ({ plant, onDelete, index, onViewTimeline, canDelete }) => {
           <h3 className="plant-card__name">{plant.plantName}</h3>
 
           <div className="plant-card__details">
-            <div className="plant-card__detail">
-              <span className="plant-card__detail-icon">📍</span>
-              <span>{plant.region}</span>
-            </div>
+            {plant.region && (
+              <div className="plant-card__detail">
+                <span className="plant-card__detail-icon">📍</span>
+                <span>{plant.region}</span>
+              </div>
+            )}
             <div className="plant-card__detail">
               <span className="plant-card__detail-icon">📅</span>
               <span>{formatDate(plant.plantedDate)}</span>

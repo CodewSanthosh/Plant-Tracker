@@ -17,7 +17,6 @@ const plantSchema = new mongoose.Schema({
   },
   region: {
     type: String,
-    required: [true, 'Planted region/place is required'],
     trim: true,
   },
   plantedDate: {

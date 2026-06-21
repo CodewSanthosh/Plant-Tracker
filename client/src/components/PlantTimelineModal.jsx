@@ -60,7 +60,7 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess }) => {
     {
       _id: 'original',
       image: plant.image,
-      notes: `Planted by ${plant.plantedBy} in ${plant.region}`,
+      notes: `Planted by ${plant.plantedBy}${plant.region ? ` in ${plant.region}` : ''}`,
       date: plant.plantedDate,
       type: 'planted'
     },

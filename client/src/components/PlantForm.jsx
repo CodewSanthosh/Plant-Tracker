@@ -6,7 +6,6 @@ const PlantForm = ({ onPlantAdded }) => {
   const [plantName, setPlantName] = useState('');
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [region, setRegion] = useState('');
   const [plantedDate, setPlantedDate] = useState('');
   const [plantedBy, setPlantedBy] = useState('');
   const [location, setLocation] = useState(null);
@@ -31,7 +30,6 @@ const PlantForm = ({ onPlantAdded }) => {
     setPlantName('');
     setImage(null);
     setImagePreview(null);
-    setRegion('');
     setPlantedDate('');
     setPlantedBy('');
     setLocation(null);
@@ -42,7 +40,7 @@ const PlantForm = ({ onPlantAdded }) => {
     setError('');
     setSuccess('');
 
-    if (!plantName.trim() || !image || !region.trim() || !plantedDate || !plantedBy.trim() || !location) {
+    if (!plantName.trim() || !image || !plantedDate || !plantedBy.trim() || !location) {
       setError('Please fill in all fields and pick a location on the map');
       return;
     }
@@ -53,7 +51,6 @@ const PlantForm = ({ onPlantAdded }) => {
       const data = new FormData();
       data.append('plantName', plantName.trim());
       data.append('image', image);
-      data.append('region', region.trim());
       data.append('plantedDate', plantedDate);
       data.append('plantedBy', plantedBy.trim());
       data.append('lat', location.lat);
@@ -89,20 +86,6 @@ const PlantForm = ({ onPlantAdded }) => {
             placeholder="e.g., Neem Tree"
             value={plantName}
             onChange={(e) => setPlantName(e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="region">
-            Region / Place <span className="required">*</span>
-          </label>
-          <input
-            type="text"
-            id="region"
-            className="form-input"
-            placeholder="e.g., Hyderabad, Telangana"
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
           />
         </div>
 
