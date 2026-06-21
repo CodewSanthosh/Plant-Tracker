@@ -21,13 +21,14 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Create user
-    const user = await User.create({ email, password });
+    // Create user — public registration always creates a regular user
+    const user = await User.create({ email, password, role: 'user' });
 
     if (user) {
       res.status(201).json({
         _id: user._id,
         email: user.email,
+        role: user.role,
         token: generateToken(user._id),
       });
     } else {
@@ -53,6 +54,7 @@ const loginUser = async (req, res) => {
       res.json({
         _id: user._id,
         email: user.email,
+        role: user.role,
         token: generateToken(user._id),
       });
     } else {

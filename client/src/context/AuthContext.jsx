@@ -28,12 +28,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (userData) => {
-    setUser({ _id: userData._id, email: userData.email });
+    setUser({ _id: userData._id, email: userData.email, role: userData.role });
     setToken(userData.token);
     localStorage.setItem('plantTrackerToken', userData.token);
     localStorage.setItem('plantTrackerUser', JSON.stringify({
       _id: userData._id,
       email: userData.email,
+      role: userData.role,
     }));
   };
 
@@ -45,9 +46,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const isAuthenticated = !!token;
+  const isAdmin = user?.role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, isAuthenticated, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

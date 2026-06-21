@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -16,6 +16,33 @@ let DefaultIcon = L.icon({
   shadowSize: [41, 41]
 });
 L.Marker.prototype.options.icon = DefaultIcon;
+
+// Pick the most recent image for a plant (latest growth update, else the original photo)
+const getLatestImage = (plant) => {
+  if (plant.updates && plant.updates.length > 0) {
+    const sorted = [...plant.updates].sort((a, b) => new Date(b.date) - new Date(a.date));
+    return sorted[0].image;
+  }
+  return plant.image;
+};
+
+// Build a small circular image marker for a plant
+const buildThumbIcon = (plant) =>
+  L.divIcon({
+    className: 'plant-thumb-marker',
+    html: `
+      <div style="
+        width: 46px; height: 46px; border-radius: 50%;
+        border: 3px solid #22c55e; overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4); background: #fff;
+      ">
+        <img src="${getLatestImage(plant)}" alt="${plant.plantName}"
+          style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+      </div>`,
+    iconSize: [46, 46],
+    iconAnchor: [23, 46],
+    popupAnchor: [0, -46],
+  });
 
 // Component to handle map clicks for picking location
 const MapEvents = ({ setLocation }) => {
@@ -74,11 +101,12 @@ export const PlantMap = ({ plants, onPlantClick }) => {
           <Marker 
             key={plant._id} 
             position={[plant.location.lat, plant.location.lng]}
+            icon={buildThumbIcon(plant)}
           >
             <Popup>
               <div style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => onPlantClick(plant)}>
                 <img 
-                  src={plant.image} 
+                  src={getLatestImage(plant)} 
                   alt={plant.plantName} 
                   style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px', marginBottom: '8px' }} 
                 />

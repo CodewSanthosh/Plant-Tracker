@@ -26,6 +26,19 @@ const Navbar = ({ plantCount }) => {
         {user && (
           <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
             Hi, {user.email}
+            <span style={{
+              marginLeft: '8px',
+              padding: '2px 8px',
+              borderRadius: '999px',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              background: user.role === 'admin' ? 'rgba(34,197,94,0.2)' : 'rgba(148,163,184,0.2)',
+              color: user.role === 'admin' ? '#22c55e' : '#94a3b8',
+            }}>
+              {user.role === 'admin' ? 'Admin' : 'User'}
+            </span>
           </span>
         )}
 

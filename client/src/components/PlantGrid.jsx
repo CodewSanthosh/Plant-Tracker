@@ -1,6 +1,6 @@
 import PlantCard from './PlantCard';
 
-const PlantGrid = ({ plants, onDelete, loading, onViewTimeline }) => {
+const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, canDelete }) => {
   if (loading) {
     return (
       <div className="loading">
@@ -29,6 +29,7 @@ const PlantGrid = ({ plants, onDelete, loading, onViewTimeline }) => {
           plant={plant}
           onDelete={onDelete}
           onViewTimeline={onViewTimeline}
+          canDelete={canDelete}
           index={index}
         />
       ))}

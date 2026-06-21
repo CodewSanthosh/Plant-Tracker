@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const PlantCard = ({ plant, onDelete, index, onViewTimeline }) => {
+const PlantCard = ({ plant, onDelete, index, onViewTimeline, canDelete }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -63,13 +63,15 @@ const PlantCard = ({ plant, onDelete, index, onViewTimeline }) => {
             <span className="plant-card__date-added">
               Added {formatDate(plant.createdAt)}
             </span>
-            <button
-              className="btn btn-danger"
-              onClick={() => setShowConfirm(true)}
-              id={`delete-plant-${plant._id}`}
-            >
-              Delete
-            </button>
+            {canDelete && (
+              <button
+                className="btn btn-danger"
+                onClick={() => setShowConfirm(true)}
+                id={`delete-plant-${plant._id}`}
+              >
+                Delete
+              </button>
+            )}
           </div>
         </div>
 

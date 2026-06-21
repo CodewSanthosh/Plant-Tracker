@@ -5,8 +5,10 @@ import PlantGrid from '../components/PlantGrid';
 import { PlantMap } from '../components/MapComponents';
 import PlantTimelineModal from '../components/PlantTimelineModal';
 import { getPlants, deletePlant } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const Dashboard = () => {
+  const { isAdmin } = useAuth();
   const [plants, setPlants] = useState([]);
   const [plantCount, setPlantCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -64,12 +66,14 @@ const Dashboard = () => {
           </p>
         </div>
 
-        <section className="plant-form-section">
-          <h3 className="plant-form-section__title">
-            <span>🌱</span> Add New Plant
-          </h3>
-          <PlantForm onPlantAdded={handlePlantAdded} />
-        </section>
+        {isAdmin && (
+          <section className="plant-form-section">
+            <h3 className="plant-form-section__title">
+              <span>🌱</span> Add New Plant
+            </h3>
+            <PlantForm onPlantAdded={handlePlantAdded} />
+          </section>
+        )}
 
         <section className="plant-grid-section">
           <h3 className="plant-grid-section__title" style={{ display: 'flex', alignItems: 'center' }}>
@@ -110,6 +114,7 @@ const Dashboard = () => {
               plants={plants}
               onDelete={handleDeletePlant}
               onViewTimeline={setActiveTimelinePlant}
+              canDelete={isAdmin}
               loading={loading}
             />
           ) : (

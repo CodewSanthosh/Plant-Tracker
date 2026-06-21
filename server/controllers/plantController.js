@@ -32,13 +32,13 @@ const getPublicIdFromUrl = (url) => {
   }
 };
 
-// @desc    Get all plants
+// @desc    Get all plants (shared across all users)
 // @route   GET /api/plants
 // @access  Private
 const getPlants = async (req, res) => {
   try {
-    const plants = await Plant.find({ user: req.user._id }).sort({ createdAt: -1 });
-    const count = await Plant.countDocuments({ user: req.user._id });
+    const plants = await Plant.find().sort({ createdAt: -1 });
+    const count = await Plant.countDocuments();
 
     res.json({ plants, count });
   } catch (error) {
@@ -49,7 +49,7 @@ const getPlants = async (req, res) => {
 
 // @desc    Add a new plant
 // @route   POST /api/plants
-// @access  Private
+// @access  Private/Admin
 const addPlant = async (req, res) => {
   try {
     const { plantName, region, plantedDate, plantedBy, lat, lng } = req.body;
@@ -58,10 +58,14 @@ const addPlant = async (req, res) => {
       return res.status(400).json({ message: 'Please upload a plant image' });
     }
 
+    if (!lat || !lng) {
+      return res.status(400).json({ message: 'Please pick the plantation location on the map' });
+    }
+
     // Upload to Cloudinary
     const cloudResult = await uploadToCloudinary(req.file.buffer);
 
-    const location = (lat && lng) ? { lat: Number(lat), lng: Number(lng) } : undefined;
+    const location = { lat: Number(lat), lng: Number(lng) };
 
     const plant = await Plant.create({
       user: req.user._id,
@@ -73,7 +77,7 @@ const addPlant = async (req, res) => {
       location,
     });
 
-    const count = await Plant.countDocuments({ user: req.user._id });
+    const count = await Plant.countDocuments();
 
     res.status(201).json({ plant, count });
   } catch (error) {
@@ -84,18 +88,13 @@ const addPlant = async (req, res) => {
 
 // @desc    Delete a plant
 // @route   DELETE /api/plants/:id
-// @access  Private
+// @access  Private/Admin
 const deletePlant = async (req, res) => {
   try {
     const plant = await Plant.findById(req.params.id);
 
     if (!plant) {
       return res.status(404).json({ message: 'Plant not found' });
-    }
-
-    // Ensure the user owns the plant
-    if (plant.user.toString() !== req.user._id.toString()) {
-      return res.status(401).json({ message: 'Not authorized to delete this plant' });
     }
 
     // Delete image from Cloudinary
@@ -109,7 +108,7 @@ const deletePlant = async (req, res) => {
     }
 
     await Plant.findByIdAndDelete(req.params.id);
-    const count = await Plant.countDocuments({ user: req.user._id });
+    const count = await Plant.countDocuments();
 
     res.json({ message: 'Plant removed', count });
   } catch (error) {
@@ -123,7 +122,7 @@ const deletePlant = async (req, res) => {
 // @access  Private
 const getPlantCount = async (req, res) => {
   try {
-    const count = await Plant.countDocuments({ user: req.user._id });
+    const count = await Plant.countDocuments();
     res.json({ count });
   } catch (error) {
     console.error('Count error:', error.message);
@@ -133,7 +132,7 @@ const getPlantCount = async (req, res) => {
 
 // @desc    Add a growth update to a plant
 // @route   POST /api/plants/:id/updates
-// @access  Private
+// @access  Private (any logged-in user)
 const addPlantUpdate = async (req, res) => {
   try {
     const { notes, date } = req.body;
@@ -146,10 +145,6 @@ const addPlantUpdate = async (req, res) => {
 
     if (!plant) {
       return res.status(404).json({ message: 'Plant not found' });
-    }
-
-    if (plant.user.toString() !== req.user._id.toString()) {
-      return res.status(401).json({ message: 'Not authorized to update this plant' });
     }
 
     // Upload update image to Cloudinary
