@@ -97,6 +97,12 @@ const deletePlant = async (req, res) => {
       return res.status(404).json({ message: 'Plant not found' });
     }
 
+    // Only the owner or an admin can delete a plant
+    const isOwner = plant.user && plant.user.toString() === req.user._id.toString();
+    if (!isOwner && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to delete this plant' });
+    }
+
     // Delete image from Cloudinary
     const publicId = getPublicIdFromUrl(plant.image);
     if (publicId) {
@@ -145,6 +151,12 @@ const addPlantUpdate = async (req, res) => {
 
     if (!plant) {
       return res.status(404).json({ message: 'Plant not found' });
+    }
+
+    // Only the owner or an admin can add updates to a plant
+    const isOwner = plant.user && plant.user.toString() === req.user._id.toString();
+    if (!isOwner && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'You can only update plants you added' });
     }
 
     // Upload update image to Cloudinary

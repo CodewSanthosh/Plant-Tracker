@@ -1,6 +1,6 @@
 import PlantCard from './PlantCard';
 
-const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, canDelete }) => {
+const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, currentUserId, isAdmin }) => {
   if (loading) {
     return (
       <div className="loading">
@@ -29,7 +29,7 @@ const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, canDelete }) => 
           plant={plant}
           onDelete={onDelete}
           onViewTimeline={onViewTimeline}
-          canDelete={canDelete}
+          canDelete={isAdmin || plant.user === currentUserId}
           index={index}
         />
       ))}

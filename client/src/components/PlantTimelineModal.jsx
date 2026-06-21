@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { addPlantUpdate } from '../services/api';
 
-const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess }) => {
+const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState('');
   const [image, setImage] = useState(null);
@@ -120,7 +120,8 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess }) => {
 
           <hr style={{ border: 'none', borderTop: '1px solid var(--glass-border)' }} />
 
-          {/* ADD UPDATE FORM */}
+          {/* ADD UPDATE FORM — only the owner or an admin can post updates */}
+          {canUpdate ? (
           <div className="glass-panel" style={{ padding: '20px', background: 'rgba(255,255,255,0.02)' }}>
             <h3 style={{ margin: '0 0 15px 0' }}>Add Growth Update</h3>
             {error && <div className="error-message" style={{ color: '#ff6b6b', marginBottom: '15px' }}>{error}</div>}
@@ -163,6 +164,11 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess }) => {
               </button>
             </form>
           </div>
+          ) : (
+            <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+              Only the person who added this plant (or an admin) can post growth updates.
+            </p>
+          )}
 
         </div>
       </div>
