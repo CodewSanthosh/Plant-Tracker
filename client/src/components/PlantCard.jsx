@@ -45,7 +45,15 @@ const PlantCard = ({ plant, onDelete, index, onViewTimeline, canDelete }) => {
           <h3 className="plant-card__name">{plant.plantName}</h3>
 
           <div className="plant-card__details">
-            {plant.region && (
+            {plant.location?.address && (
+              <div className="plant-card__detail">
+                <span className="plant-card__detail-icon">📍</span>
+                <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontSize: '0.85rem' }} title={plant.location.address}>
+                  {plant.location.address}
+                </span>
+              </div>
+            )}
+            {plant.region && !plant.location?.address && (
               <div className="plant-card__detail">
                 <span className="plant-card__detail-icon">📍</span>
                 <span>{plant.region}</span>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import exifr from 'exifr';
 import { addPlant } from '../services/api';
 import { LocationPicker } from './MapComponents';
@@ -10,10 +10,41 @@ const PlantForm = ({ onPlantAdded }) => {
   const [plantedDate, setPlantedDate] = useState('');
   const [plantedBy, setPlantedBy] = useState('');
   const [location, setLocation] = useState(null);
+  const [address, setAddress] = useState('');
   const [geoStatus, setGeoStatus] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Auto-fetch address when location changes
+  useEffect(() => {
+    const fetchAddress = async () => {
+      if (!location || !location.lat || !location.lng) return;
+      
+      try {
+        setGeoStatus('🔍 Fetching address details...');
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&zoom=18&addressdetails=1`);
+        const data = await response.json();
+        
+        if (data && data.display_name) {
+          setAddress(data.display_name);
+          setGeoStatus('📍 Location and address auto-detected!');
+        } else {
+          setGeoStatus('📍 Location detected, but address not found.');
+        }
+      } catch (err) {
+        console.error('Reverse geocoding failed:', err);
+        setGeoStatus('📍 Location detected, but address fetch failed.');
+      }
+    };
+
+    // Add a small debounce to avoid spamming the API if user clicks map rapidly
+    const timeoutId = setTimeout(() => {
+      fetchAddress();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [location]);
 
   // Try to extract GPS from EXIF, fallback to device GPS
   const extractGeoTag = async (file) => {
@@ -72,6 +103,7 @@ const PlantForm = ({ onPlantAdded }) => {
     setPlantedDate('');
     setPlantedBy('');
     setLocation(null);
+    setAddress('');
     setGeoStatus('');
   };
 
@@ -95,6 +127,9 @@ const PlantForm = ({ onPlantAdded }) => {
       data.append('plantedBy', plantedBy.trim());
       data.append('lat', location.lat);
       data.append('lng', location.lng);
+      if (address) {
+        data.append('address', address.trim());
+      }
 
       const result = await addPlant(data);
       setSuccess('🌱 Plant added successfully!');
@@ -198,6 +233,22 @@ const PlantForm = ({ onPlantAdded }) => {
           </p>
           <LocationPicker location={location} setLocation={setLocation} />
         </div>
+
+        {location && (
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label htmlFor="address">
+              Detected Address Details
+            </label>
+            <textarea
+              id="address"
+              className="form-input"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Address will auto-populate here..."
+              rows="3"
+            />
+          </div>
+        )}
       </div>
 
       {error && <div className="form-error">{error}</div>}
