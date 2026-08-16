@@ -11,16 +11,224 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
 
   if (!plant) return null;
 
-  const handleImageChange = (e) => {
+  const addWatermark = async (imageFile, location) => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        let addressStr = "Address not found";
+        let geoData = null;
+        if (location && typeof location.lat === 'number' && typeof location.lng === 'number') {
+          try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&accept-language=en`);
+            const data = await response.json();
+            if (data) {
+              geoData = data;
+              if (data.display_name) {
+                addressStr = data.display_name;
+              }
+            }
+          } catch (e) {
+            console.error("Geocoding failed", e);
+          }
+        }
+
+        const img = new Image();
+        img.src = URL.createObjectURL(imageFile);
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+
+          // Draw original image
+          ctx.drawImage(img, 0, 0);
+
+          // Calculate dynamic layout sizes based on image dimensions
+          const padding = Math.max(img.width * 0.025, 12);
+          const titleSize = Math.max(Math.floor(img.width * 0.028), 18);
+          const textSize = Math.max(Math.floor(img.width * 0.020), 13);
+          
+          // Format text
+          const now = new Date();
+          const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+          const timezoneStr = `GMT ${now.getTimezoneOffset() < 0 ? '+' : '-'}${Math.abs(now.getTimezoneOffset() / 60).toString().padStart(2, '0')}:00`;
+
+          // Simple text wrapping for address
+          const addressWords = addressStr.split(' ');
+          let addrLine = '';
+          const mapSize = Math.max(img.width * 0.20, 140); // Scale with image width, at least 140px
+          const maxTextWidth = img.width - (padding * 3 + mapSize);
+          const wrappedAddressLines = [];
+          
+          ctx.font = `${textSize}px sans-serif`;
+          for (let i = 0; i < addressWords.length; i++) {
+            const testLine = addrLine + addressWords[i] + ' ';
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxTextWidth && i > 0) {
+              wrappedAddressLines.push(addrLine);
+              addrLine = addressWords[i] + ' ';
+            } else {
+              addrLine = testLine;
+            }
+          }
+          wrappedAddressLines.push(addrLine);
+
+          // Calculate overlay height based on text lines or map size
+          let textHeight = titleSize + 10 + (wrappedAddressLines.length * (textSize + 5)) + ((textSize + 10) * 2);
+          let overlayHeight = Math.max(mapSize + padding * 2, textHeight + padding * 2);
+          const overlayY = img.height - overlayHeight;
+
+          // Draw dark semi-transparent background
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.fillRect(0, overlayY, img.width, overlayHeight);
+
+          // Draw mock map
+          const mapX = padding;
+          const mapY = overlayY + padding;
+          
+          // Draw map background (Google Maps cream color)
+          ctx.fillStyle = '#f4f3f0';
+          ctx.fillRect(mapX, mapY, mapSize, mapSize);
+          
+          // Draw map grid (streets)
+          ctx.strokeStyle = '#e0decb';
+          ctx.lineWidth = Math.max(mapSize * 0.05, 3);
+          
+          // horizontal lines
+          ctx.beginPath();
+          ctx.moveTo(mapX, mapY + mapSize * 0.3);
+          ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.3);
+          ctx.moveTo(mapX, mapY + mapSize * 0.7);
+          ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.7);
+          // vertical lines
+          ctx.moveTo(mapX + mapSize * 0.3, mapY);
+          ctx.lineTo(mapX + mapSize * 0.3, mapY + mapSize);
+          ctx.moveTo(mapX + mapSize * 0.7, mapY);
+          ctx.lineTo(mapX + mapSize * 0.7, mapY + mapSize);
+          ctx.stroke();
+
+          // Draw a highway (yellow line)
+          ctx.strokeStyle = '#ffeb3b';
+          ctx.lineWidth = Math.max(mapSize * 0.08, 5);
+          ctx.beginPath();
+          ctx.moveTo(mapX, mapY + mapSize * 0.5);
+          ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.5);
+          ctx.stroke();
+
+          // Draw some parks/forests (green rectangles)
+          ctx.fillStyle = '#c8e6c9';
+          ctx.fillRect(mapX + mapSize * 0.05, mapY + mapSize * 0.05, mapSize * 0.2, mapSize * 0.2);
+          ctx.fillRect(mapX + mapSize * 0.75, mapY + mapSize * 0.05, mapSize * 0.2, mapSize * 0.25);
+          ctx.fillRect(mapX + mapSize * 0.05, mapY + mapSize * 0.75, mapSize * 0.2, mapSize * 0.2);
+
+          // Draw red Google Maps teardrop marker in center of map
+          const pinX = mapX + mapSize / 2;
+          const pinY = mapY + mapSize / 2;
+          const pinHeight = mapSize * 0.35;
+          
+          ctx.fillStyle = '#ea4335'; // Google Maps Red
+          ctx.beginPath();
+          ctx.moveTo(pinX, pinY);
+          ctx.bezierCurveTo(
+            pinX - pinHeight * 0.5, pinY - pinHeight,
+            pinX + pinHeight * 0.5, pinY - pinHeight,
+            pinX, pinY
+          );
+          ctx.fill();
+          
+          // White circle inside pin
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(pinX, pinY - pinHeight * 0.65, pinHeight * 0.2, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Text styling
+          ctx.fillStyle = '#ffffff';
+          ctx.textBaseline = 'top';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+          ctx.shadowBlur = 4;
+          
+          const textX = padding + mapSize + padding;
+          let currentY = overlayY + padding;
+
+          // Title (Short Location)
+          ctx.font = `bold ${titleSize}px sans-serif`;
+          let shortTitle = "Location";
+          if (geoData && geoData.address) {
+            const addr = geoData.address;
+            const city = addr.city || addr.town || addr.village || addr.suburb || "";
+            const state = addr.state || "";
+            const country = addr.country || "";
+            shortTitle = [city, state, country].filter(Boolean).join(', ') || "Location";
+          } else {
+            const addressParts = addressStr.split(', ');
+            shortTitle = addressParts.slice(-2).join(', ') || "Location";
+          }
+          ctx.fillText(shortTitle, textX, currentY);
+          currentY += titleSize + 10;
+
+          // Full Address
+          ctx.font = `${textSize}px sans-serif`;
+          for (const line of wrappedAddressLines) {
+            ctx.fillText(line, textX, currentY);
+            currentY += textSize + 5;
+          }
+          currentY += 5;
+
+          // Coordinates
+          ctx.fillText(`Lat ${location.lat.toFixed(6)}°  Long ${location.lng.toFixed(6)}°`, textX, currentY);
+          currentY += textSize + 10;
+
+          // Date Time
+          ctx.fillText(`${dateStr} ${timeStr} ${timezoneStr}`, textX, currentY);
+
+          // Brand Watermark
+          const brandText = "🌱 GPS Map Camera (Web)";
+          ctx.font = `bold ${textSize}px sans-serif`;
+          const brandWidth = ctx.measureText(brandText).width;
+          ctx.fillStyle = '#4ade80'; // Greenish
+          ctx.fillText(brandText, img.width - brandWidth - padding, overlayY + padding);
+
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const watermarkedFile = new File([blob], imageFile.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(watermarkedFile);
+            } else {
+              reject(new Error("Canvas to Blob failed"));
+            }
+          }, 'image/jpeg', 0.9);
+        };
+        img.onerror = (err) => reject(err);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         setError('Image must be less than 5MB');
         return;
       }
-      setImage(file);
       setImagePreview(URL.createObjectURL(file));
       setError('');
+      setLoading(true);
+      
+      try {
+        const watermarkedFile = await addWatermark(file, plant.location);
+        setImage(watermarkedFile);
+        setImagePreview(URL.createObjectURL(watermarkedFile));
+      } catch (err) {
+        console.error("Watermark failed", err);
+        setImage(file);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -109,7 +317,7 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
                   </div>
                   
                   {event.image && (
-                    <img src={event.image} alt="Update" style={{ width: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: '8px', marginBottom: '10px' }} />
+                    <img src={event.image} alt="Update" style={{ width: '100%', maxHeight: '350px', objectFit: 'contain', background: '#111', borderRadius: '8px', marginBottom: '10px' }} />
                   )}
                   
                   {event.notes && <p style={{ margin: 0, fontSize: '0.95rem' }}>{event.notes}</p>}

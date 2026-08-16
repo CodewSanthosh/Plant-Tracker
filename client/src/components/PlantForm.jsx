@@ -20,12 +20,16 @@ const PlantForm = ({ onPlantAdded }) => {
     return new Promise(async (resolve, reject) => {
       try {
         let addressStr = "Address not found";
+        let geoData = null;
         if (location && typeof location.lat === 'number' && typeof location.lng === 'number') {
           try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}`);
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&accept-language=en`);
             const data = await response.json();
-            if (data && data.display_name) {
-              addressStr = data.display_name;
+            if (data) {
+              geoData = data;
+              if (data.display_name) {
+                addressStr = data.display_name;
+              }
             }
           } catch (e) {
             console.error("Geocoding failed", e);
@@ -154,8 +158,17 @@ const PlantForm = ({ onPlantAdded }) => {
 
           // Title (Short Location)
           ctx.font = `bold ${titleSize}px sans-serif`;
-          const addressParts = addressStr.split(', ');
-          const shortTitle = addressParts.slice(-3).join(', ') || "Location";
+          let shortTitle = "Location";
+          if (geoData && geoData.address) {
+            const addr = geoData.address;
+            const city = addr.city || addr.town || addr.village || addr.suburb || "";
+            const state = addr.state || "";
+            const country = addr.country || "";
+            shortTitle = [city, state, country].filter(Boolean).join(', ') || "Location";
+          } else {
+            const addressParts = addressStr.split(', ');
+            shortTitle = addressParts.slice(-2).join(', ') || "Location";
+          }
           ctx.fillText(shortTitle, textX, currentY);
           currentY += titleSize + 10;
 
