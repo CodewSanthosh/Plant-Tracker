@@ -166,7 +166,7 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
           </div>
           ) : (
             <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-              Only the person who added this plant (or an admin) can post growth updates.
+              Only admins can post growth updates to plants.
             </p>
           )}
 

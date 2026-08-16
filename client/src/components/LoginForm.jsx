@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { loginUser, registerUser } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import ForgotPasswordModal from './ForgotPasswordModal';
 
 const LoginForm = () => {
   // Step 1 → choose role (admin / user). Step 2 → enter credentials.
@@ -10,6 +11,7 @@ const LoginForm = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { login } = useAuth();
 
   const resetState = () => {
@@ -38,8 +40,7 @@ const LoginForm = () => {
     try {
       let data;
       if (isRegister) {
-        // Registration only creates regular users
-        data = await registerUser(email.trim(), password);
+        data = await registerUser(email.trim(), password, role);
       } else {
         data = await loginUser(email.trim(), password, role);
       }
@@ -53,6 +54,16 @@ const LoginForm = () => {
       setLoading(false);
     }
   };
+
+  // ---------- FORGOT PASSWORD MODAL ----------
+  if (showForgotPassword) {
+    return (
+      <ForgotPasswordModal
+        onClose={() => setShowForgotPassword(false)}
+        onResetSuccess={() => setShowForgotPassword(false)}
+      />
+    );
+  }
 
   // ---------- STEP 1: Role selection ----------
   if (!role) {
@@ -86,7 +97,7 @@ const LoginForm = () => {
         </div>
 
         <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 'var(--space-5)' }}>
-          Admins can add and manage trees. Users can view all trees and add growth updates.
+          Admins can add and manage trees. Users can view all trees and their growth timelines.
         </p>
       </div>
     );
@@ -106,10 +117,10 @@ const LoginForm = () => {
         </h2>
         <p className="login-card__subtitle">
           {isRegister
-            ? 'Set up your Plant Tracker user account'
+            ? `Set up your Plant Tracker ${isAdminLogin ? 'admin' : 'user'} account`
             : isAdminLogin
               ? 'Sign in with your admin credentials'
-              : 'Sign in to view trees and post updates'}
+              : 'Sign in to view trees and growth timelines'}
         </p>
       </div>
 
@@ -159,21 +170,30 @@ const LoginForm = () => {
         </button>
       </form>
 
-      {/* Only regular users can self-register; admins are provisioned separately */}
-      {!isAdminLogin && (
+      {/* Forgot Password link — available for both admin and user login */}
+      {!isRegister && (
         <div className="form-toggle">
-          {isRegister ? 'Already have an account? ' : "Don't have an account? "}
           <button
-            onClick={() => {
-              setIsRegister(!isRegister);
-              setError('');
-            }}
-            id="toggle-auth-mode"
+            onClick={() => setShowForgotPassword(true)}
+            id="forgot-password-btn"
           >
-            {isRegister ? 'Sign In' : 'Register'}
+            Forgot Password?
           </button>
         </div>
       )}
+
+      <div className="form-toggle">
+        {isRegister ? 'Already have an account? ' : "Don't have an account? "}
+        <button
+          onClick={() => {
+            setIsRegister(!isRegister);
+            setError('');
+          }}
+          id="toggle-auth-mode"
+        >
+          {isRegister ? 'Sign In' : 'Register'}
+        </button>
+      </div>
 
       <div className="form-toggle">
         <button
@@ -188,3 +208,4 @@ const LoginForm = () => {
 };
 
 export default LoginForm;
+

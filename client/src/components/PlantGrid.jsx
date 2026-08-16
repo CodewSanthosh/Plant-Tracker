@@ -15,7 +15,9 @@ const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, currentUserId, i
         <span className="empty-state__icon">🌿</span>
         <h3 className="empty-state__title">No plants yet</h3>
         <p className="empty-state__text">
-          Start by adding your first plant using the form above!
+          {isAdmin
+            ? 'Start by adding your first plant using the form above!'
+            : 'No plants have been added yet. Check back later!'}
         </p>
       </div>
     );
@@ -29,7 +31,7 @@ const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, currentUserId, i
           plant={plant}
           onDelete={onDelete}
           onViewTimeline={onViewTimeline}
-          canDelete={isAdmin || plant.user === currentUserId}
+          canDelete={isAdmin}
           index={index}
         />
       ))}
@@ -38,3 +40,4 @@ const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, currentUserId, i
 };
 
 export default PlantGrid;
+

@@ -62,16 +62,20 @@ const Dashboard = () => {
         <div className="dashboard__header">
           <h2 className="dashboard__title">🌍 Track Your Green Impact</h2>
           <p className="dashboard__subtitle">
-            Every plant counts. Add and monitor your plantation journey.
+            {isAdmin
+              ? 'Every plant counts. Add and monitor your plantation journey.'
+              : 'Browse and explore all planted trees and their growth timelines.'}
           </p>
         </div>
 
-        <section className="plant-form-section">
-          <h3 className="plant-form-section__title">
-            <span>🌱</span> Add New Plant
-          </h3>
-          <PlantForm onPlantAdded={handlePlantAdded} />
-        </section>
+        {isAdmin && (
+          <section className="plant-form-section">
+            <h3 className="plant-form-section__title">
+              <span>🌱</span> Add New Plant
+            </h3>
+            <PlantForm onPlantAdded={handlePlantAdded} />
+          </section>
+        )}
 
         <section className="plant-grid-section">
           <h3 className="plant-grid-section__title" style={{ display: 'flex', alignItems: 'center' }}>
@@ -130,7 +134,7 @@ const Dashboard = () => {
           plant={activeTimelinePlant} 
           onClose={() => setActiveTimelinePlant(null)}
           onUpdateSuccess={handleUpdateSuccess}
-          canUpdate={isAdmin || activeTimelinePlant.user === user?._id}
+          canUpdate={isAdmin}
         />
       )}
     </div>

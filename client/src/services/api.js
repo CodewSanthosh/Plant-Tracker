@@ -29,7 +29,9 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('plantTrackerToken');
       localStorage.removeItem('plantTrackerUser');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -41,8 +43,18 @@ export const loginUser = async (email, password, role) => {
   return data;
 };
 
-export const registerUser = async (email, password) => {
-  const { data } = await api.post('/auth/register', { email, password });
+export const registerUser = async (email, password, role) => {
+  const { data } = await api.post('/auth/register', { email, password, role });
+  return data;
+};
+
+export const forgotPassword = async (email) => {
+  const { data } = await api.post('/auth/forgot-password', { email });
+  return data;
+};
+
+export const resetPassword = async (token, password) => {
+  const { data } = await api.put(`/auth/reset-password/${token}`, { password });
   return data;
 };
 
