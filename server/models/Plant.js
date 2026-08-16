@@ -29,8 +29,7 @@ const plantSchema = new mongoose.Schema({
   },
   location: {
     lat: { type: Number },
-    lng: { type: Number },
-    address: { type: String }
+    lng: { type: Number }
   },
   updates: [
     {

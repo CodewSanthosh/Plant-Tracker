@@ -52,7 +52,7 @@ const getPlants = async (req, res) => {
 // @access  Private/Admin
 const addPlant = async (req, res) => {
   try {
-    const { plantName, region, plantedDate, plantedBy, lat, lng, address } = req.body;
+    const { plantName, region, plantedDate, plantedBy, lat, lng } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ message: 'Please upload a plant image' });
@@ -65,7 +65,7 @@ const addPlant = async (req, res) => {
     // Upload to Cloudinary
     const cloudResult = await uploadToCloudinary(req.file.buffer);
 
-    const location = { lat: Number(lat), lng: Number(lng), address };
+    const location = { lat: Number(lat), lng: Number(lng) };
 
     const plant = await Plant.create({
       user: req.user._id,
