@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import exifr from 'exifr';
 import { addPlant } from '../services/api';
 
 const PlantForm = ({ onPlantAdded }) => {
   const [plantName, setPlantName] = useState('');
   const [image, setImage] = useState(null);
+  const [originalImage, setOriginalImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [plantedDate, setPlantedDate] = useState('');
   const [plantedBy, setPlantedBy] = useState('');
@@ -13,19 +14,22 @@ const PlantForm = ({ onPlantAdded }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [watermarking, setWatermarking] = useState(false);
 
   const addWatermark = async (imageFile, location) => {
     return new Promise(async (resolve, reject) => {
       try {
         let addressStr = "Address not found";
-        try {
-          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}`);
-          const data = await response.json();
-          if (data && data.display_name) {
-            addressStr = data.display_name;
+        if (location && typeof location.lat === 'number' && typeof location.lng === 'number') {
+          try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}`);
+            const data = await response.json();
+            if (data && data.display_name) {
+              addressStr = data.display_name;
+            }
+          } catch (e) {
+            console.error("Geocoding failed", e);
           }
-        } catch (e) {
-          console.error("Geocoding failed", e);
         }
 
         const img = new Image();
@@ -39,30 +43,22 @@ const PlantForm = ({ onPlantAdded }) => {
           // Draw original image
           ctx.drawImage(img, 0, 0);
 
-          // Calculate layout
-          const padding = Math.max(img.width * 0.02, 10);
-          const titleSize = Math.max(Math.floor(img.width * 0.03), 16);
-          const textSize = Math.max(Math.floor(img.width * 0.02), 12);
+          // Calculate dynamic layout sizes based on image dimensions
+          const padding = Math.max(img.width * 0.025, 12);
+          const titleSize = Math.max(Math.floor(img.width * 0.028), 18);
+          const textSize = Math.max(Math.floor(img.width * 0.020), 13);
           
           // Format text
           const now = new Date();
           const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
           const timezoneStr = `GMT ${now.getTimezoneOffset() < 0 ? '+' : '-'}${Math.abs(now.getTimezoneOffset() / 60).toString().padStart(2, '0')}:00`;
-          
-          const lines = [
-            addressStr,
-            `Lat ${location.lat.toFixed(6)}°  Long ${location.lng.toFixed(6)}°`,
-            `${dateStr} ${timeStr} ${timezoneStr}`
-          ];
 
-          // Calculate overlay height based on text
-          let overlayHeight = padding * 2 + titleSize + 10;
-          
           // Simple text wrapping for address
           const addressWords = addressStr.split(' ');
           let addrLine = '';
-          const maxTextWidth = img.width - (padding * 2);
+          const mapSize = Math.max(img.width * 0.20, 140); // Scale with image width, at least 140px
+          const maxTextWidth = img.width - (padding * 3 + mapSize);
           const wrappedAddressLines = [];
           
           ctx.font = `${textSize}px sans-serif`;
@@ -77,22 +73,74 @@ const PlantForm = ({ onPlantAdded }) => {
             }
           }
           wrappedAddressLines.push(addrLine);
-          
-          overlayHeight += (wrappedAddressLines.length * (textSize + 5)) + ((textSize + 10) * 2);
 
+          // Calculate overlay height based on text lines or map size
+          let textHeight = titleSize + 10 + (wrappedAddressLines.length * (textSize + 5)) + ((textSize + 10) * 2);
+          let overlayHeight = Math.max(mapSize + padding * 2, textHeight + padding * 2);
           const overlayY = img.height - overlayHeight;
 
-          // Draw dark gradient/background
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          // Draw dark semi-transparent background
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
           ctx.fillRect(0, overlayY, img.width, overlayHeight);
 
-          // Draw map icon placeholder (a simple shape)
-          const iconSize = titleSize * 1.5;
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-          ctx.fillRect(padding, overlayY + padding, iconSize, iconSize);
-          ctx.fillStyle = '#ff4444'; // Red pin color
+          // Draw mock map
+          const mapX = padding;
+          const mapY = overlayY + padding;
+          
+          // Draw map background (Google Maps cream color)
+          ctx.fillStyle = '#f4f3f0';
+          ctx.fillRect(mapX, mapY, mapSize, mapSize);
+          
+          // Draw map grid (streets)
+          ctx.strokeStyle = '#e0decb';
+          ctx.lineWidth = Math.max(mapSize * 0.05, 3);
+          
+          // horizontal lines
           ctx.beginPath();
-          ctx.arc(padding + iconSize/2, overlayY + padding + iconSize/2, iconSize*0.2, 0, Math.PI*2);
+          ctx.moveTo(mapX, mapY + mapSize * 0.3);
+          ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.3);
+          ctx.moveTo(mapX, mapY + mapSize * 0.7);
+          ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.7);
+          // vertical lines
+          ctx.moveTo(mapX + mapSize * 0.3, mapY);
+          ctx.lineTo(mapX + mapSize * 0.3, mapY + mapSize);
+          ctx.moveTo(mapX + mapSize * 0.7, mapY);
+          ctx.lineTo(mapX + mapSize * 0.7, mapY + mapSize);
+          ctx.stroke();
+
+          // Draw a highway (yellow line)
+          ctx.strokeStyle = '#ffeb3b';
+          ctx.lineWidth = Math.max(mapSize * 0.08, 5);
+          ctx.beginPath();
+          ctx.moveTo(mapX, mapY + mapSize * 0.5);
+          ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.5);
+          ctx.stroke();
+
+          // Draw some parks/forests (green rectangles)
+          ctx.fillStyle = '#c8e6c9';
+          ctx.fillRect(mapX + mapSize * 0.05, mapY + mapSize * 0.05, mapSize * 0.2, mapSize * 0.2);
+          ctx.fillRect(mapX + mapSize * 0.75, mapY + mapSize * 0.05, mapSize * 0.2, mapSize * 0.25);
+          ctx.fillRect(mapX + mapSize * 0.05, mapY + mapSize * 0.75, mapSize * 0.2, mapSize * 0.2);
+
+          // Draw red Google Maps teardrop marker in center of map
+          const pinX = mapX + mapSize / 2;
+          const pinY = mapY + mapSize / 2;
+          const pinHeight = mapSize * 0.35;
+          
+          ctx.fillStyle = '#ea4335'; // Google Maps Red
+          ctx.beginPath();
+          ctx.moveTo(pinX, pinY);
+          ctx.bezierCurveTo(
+            pinX - pinHeight * 0.5, pinY - pinHeight,
+            pinX + pinHeight * 0.5, pinY - pinHeight,
+            pinX, pinY
+          );
+          ctx.fill();
+          
+          // White circle inside pin
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(pinX, pinY - pinHeight * 0.65, pinHeight * 0.2, 0, Math.PI * 2);
           ctx.fill();
 
           // Text styling
@@ -101,7 +149,7 @@ const PlantForm = ({ onPlantAdded }) => {
           ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
           ctx.shadowBlur = 4;
           
-          const textX = padding + iconSize + 15;
+          const textX = padding + mapSize + padding;
           let currentY = overlayY + padding;
 
           // Title (Short Location)
@@ -171,13 +219,34 @@ const PlantForm = ({ onPlantAdded }) => {
              console.error("Geolocation error:", err);
              resolve(null);
           },
-          { enableHighAccuracy: true, timeout: 10000 }
+          { enableHighAccuracy: true, timeout: 5000 }
         );
       } else {
         resolve(null);
       }
     });
   };
+
+  // Re-run watermarking if location or originalImage changes
+  useEffect(() => {
+    if (originalImage && location) {
+      const applyWatermark = async () => {
+        setWatermarking(true);
+        try {
+          const watermarkedFile = await addWatermark(originalImage, location);
+          setImage(watermarkedFile);
+          setImagePreview(URL.createObjectURL(watermarkedFile));
+        } catch (err) {
+          console.error("Watermark update failed", err);
+        } finally {
+          setWatermarking(false);
+        }
+      };
+      
+      const timer = setTimeout(applyWatermark, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [location, originalImage]);
 
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
@@ -187,29 +256,19 @@ const PlantForm = ({ onPlantAdded }) => {
         return;
       }
       
-      // Show temporary preview and status
+      setOriginalImage(file);
       setImagePreview(URL.createObjectURL(file));
       setError('');
-      setGeoStatus('🔍 Processing photo and finding location...');
+      setGeoStatus('🔍 Scanning photo metadata and fetching location...');
 
       const loc = await determineLocation(file);
-      
       if (loc) {
         setLocation(loc);
-        setGeoStatus('📍 Location found! Adding watermark...');
-        try {
-          const watermarkedFile = await addWatermark(file, loc);
-          setImage(watermarkedFile);
-          setImagePreview(URL.createObjectURL(watermarkedFile)); // Show final result
-          setGeoStatus('✅ Photo watermarked successfully!');
-        } catch (err) {
-          console.error("Watermarking failed", err);
-          setImage(file);
-          setGeoStatus('📍 Location found. (Watermark failed, using original photo)');
-        }
+        setGeoStatus('✅ Location detected and watermark applied!');
       } else {
-        setImage(file);
-        setGeoStatus('⚠️ Could not get location. Ensure location services are enabled.');
+        // Fallback to Chennai (Anna University) so the user gets a watermark immediately
+        setLocation({ lat: 13.010758, lng: 80.235693 });
+        setGeoStatus('⚠️ GPS sensor unavailable. Applied default Chennai location (edit coordinates below if needed).');
       }
     }
   };
@@ -217,6 +276,7 @@ const PlantForm = ({ onPlantAdded }) => {
   const resetForm = () => {
     setPlantName('');
     setImage(null);
+    setOriginalImage(null);
     setImagePreview(null);
     setPlantedDate('');
     setPlantedBy('');
@@ -230,7 +290,7 @@ const PlantForm = ({ onPlantAdded }) => {
     setSuccess('');
 
     if (!plantName.trim() || !image || !plantedDate || !plantedBy.trim() || !location) {
-      setError('Please fill in all fields and ensure a location is auto-detected from the photo or device');
+      setError('Please fill in all fields and ensure a location is set for the photo');
       return;
     }
 
@@ -310,7 +370,7 @@ const PlantForm = ({ onPlantAdded }) => {
             📸 Capture / Upload Plant Photo <span className="required">*</span>
           </label>
           <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '0 0 8px 0' }}>
-            Take a photo with your camera or select an image. GPS location will be auto-detected from the photo or your device.
+            Take a photo. If your phone asks, select your preferred Camera app.
           </p>
           <input
             type="file"
@@ -340,10 +400,34 @@ const PlantForm = ({ onPlantAdded }) => {
           <label>
             Plantation Location <span className="required">*</span>
           </label>
-          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '0 0 10px 0' }}>
-            {location
-              ? `Location auto-detected! Lat: ${location.lat.toFixed(5)}, Lng: ${location.lng.toFixed(5)}`
-              : 'Take a photo above to auto-detect location.'}
+          <div className="location-inputs" style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
+            <div style={{ flex: 1 }}>
+              <label htmlFor="latitude" style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Latitude</label>
+              <input
+                type="number"
+                step="any"
+                id="latitude"
+                className="form-input"
+                value={location ? location.lat : ''}
+                onChange={(e) => setLocation(prev => ({ ...prev, lat: parseFloat(e.target.value) || 0 }))}
+                placeholder="e.g. 13.010758"
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label htmlFor="longitude" style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>Longitude</label>
+              <input
+                type="number"
+                step="any"
+                id="longitude"
+                className="form-input"
+                value={location ? location.lng : ''}
+                onChange={(e) => setLocation(prev => ({ ...prev, lng: parseFloat(e.target.value) || 0 }))}
+                placeholder="e.g. 80.235693"
+              />
+            </div>
+          </div>
+          <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: '8px' }}>
+            💡 You can adjust the coordinates manually. The watermark on the photo updates dynamically!
           </p>
         </div>
       </div>
@@ -354,11 +438,11 @@ const PlantForm = ({ onPlantAdded }) => {
       <button
         type="submit"
         className="btn btn-primary plant-form__submit"
-        disabled={loading}
+        disabled={loading || watermarking}
         id="submit-plant-btn"
         style={{ marginTop: 'var(--space-4)' }}
       >
-        {loading ? 'Adding Plant...' : '🌱 Add Plant'}
+        {loading ? 'Adding Plant...' : watermarking ? 'Applying GPS Watermark...' : '🌱 Add Plant'}
       </button>
     </form>
   );
