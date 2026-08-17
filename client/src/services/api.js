@@ -88,4 +88,10 @@ export const getPlantCount = async () => {
   return data;
 };
 
+// Geocode API — server-side reverse geocoding
+export const reverseGeocode = async (lat, lon) => {
+  const { data } = await api.get('/geocode/reverse', { params: { lat, lon } });
+  return data;
+};
+
 export default api;

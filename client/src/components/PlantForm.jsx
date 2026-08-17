@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import exifr from 'exifr';
-import { addPlant } from '../services/api';
+import { addPlant, reverseGeocode } from '../services/api';
 
 const PlantForm = ({ onPlantAdded }) => {
   const [plantName, setPlantName] = useState('');
@@ -19,62 +19,23 @@ const PlantForm = ({ onPlantAdded }) => {
   const addWatermark = async (imageFile, location) => {
     return new Promise(async (resolve, reject) => {
       try {
-        let addressStr = "";
-        let geoData = null;
+        // ── Fetch address from our own server (reliable, no CORS issues) ──
+        let geo = {
+          display_name: '',
+          short_title: 'Location',
+          street: '', area: '', city: '', district: '', state: '', country: '', pincode: '',
+        };
+
         if (location && typeof location.lat === 'number' && typeof location.lng === 'number') {
-
-          // ── Attempt 1: OpenStreetMap Nominatim (requires User-Agent) ──
           try {
-            const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&accept-language=en&zoom=18&addressdetails=1`,
-              { headers: { 'User-Agent': 'PlantTrackerApp/1.0' } }
-            );
-            if (response.ok) {
-              const data = await response.json();
-              if (data && !data.error) {
-                geoData = data;
-                if (data.display_name) addressStr = data.display_name;
-              }
-            }
+            const serverGeo = await reverseGeocode(location.lat, location.lng);
+            if (serverGeo) geo = serverGeo;
           } catch (e) {
-            console.warn("Nominatim geocoding failed:", e.message);
-          }
-
-          // ── Attempt 2: BigDataCloud free reverse geocoding ──
-          if (!addressStr) {
-            try {
-              const response = await fetch(
-                `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.lat}&longitude=${location.lng}&localityLanguage=en`
-              );
-              if (response.ok) {
-                const data = await response.json();
-                if (data) {
-                  const city = data.city || data.locality || data.principalSubdivision || "";
-                  const state = data.principalSubdivision || "";
-                  const country = data.countryName || "";
-                  // Build a geoData-like object for the shortTitle logic
-                  geoData = { address: { city, state, country } };
-                  const parts = [
-                    data.locality, data.city, data.principalSubdivision, data.countryName
-                  ].filter(Boolean);
-                  // Remove duplicates while keeping order
-                  addressStr = [...new Set(parts)].join(', ');
-                }
-              }
-            } catch (e) {
-              console.warn("BigDataCloud geocoding failed:", e.message);
-            }
-          }
-
-          // ── Attempt 3: Fallback to coordinate string ──
-          if (!addressStr) {
-            addressStr = `Near ${location.lat.toFixed(4)}°N, ${location.lng.toFixed(4)}°E`;
-            geoData = { address: { city: `${location.lat.toFixed(4)}°N, ${location.lng.toFixed(4)}°E`, state: "", country: "" } };
+            console.warn("Server geocoding failed, using fallback:", e.message);
+            geo.display_name = `Near ${location.lat.toFixed(4)}°N, ${location.lng.toFixed(4)}°E`;
+            geo.short_title = `${location.lat.toFixed(4)}°N, ${location.lng.toFixed(4)}°E`;
           }
         }
-
-        // Final safety net
-        if (!addressStr) addressStr = "Location unavailable";
 
         const img = new Image();
         img.src = URL.createObjectURL(imageFile);
@@ -92,102 +53,128 @@ const PlantForm = ({ onPlantAdded }) => {
           const titleSize = Math.max(Math.floor(img.width * 0.028), 18);
           const textSize = Math.max(Math.floor(img.width * 0.020), 13);
           
-          // Format text
+          // Format date/time
           const now = new Date();
           const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-          const timezoneStr = `GMT ${now.getTimezoneOffset() < 0 ? '+' : '-'}${Math.abs(now.getTimezoneOffset() / 60).toString().padStart(2, '0')}:00`;
+          const timezoneStr = `GMT ${now.getTimezoneOffset() < 0 ? '+' : '-'}${Math.abs(now.getTimezoneOffset() / 60).toString().padStart(2, '0')}:${String(Math.abs(now.getTimezoneOffset() % 60)).padStart(2, '0')}`;
 
-          // Simple text wrapping for address
-          const addressWords = addressStr.split(' ');
-          let addrLine = '';
-          const mapSize = Math.max(img.width * 0.20, 140); // Scale with image width, at least 140px
+          // ── Build address lines for the watermark ──
+          const mapSize = Math.max(img.width * 0.18, 120);
           const maxTextWidth = img.width - (padding * 3 + mapSize);
-          const wrappedAddressLines = [];
-          
-          ctx.font = `${textSize}px sans-serif`;
-          for (let i = 0; i < addressWords.length; i++) {
-            const testLine = addrLine + addressWords[i] + ' ';
-            const metrics = ctx.measureText(testLine);
-            if (metrics.width > maxTextWidth && i > 0) {
-              wrappedAddressLines.push(addrLine);
-              addrLine = addressWords[i] + ' ';
-            } else {
-              addrLine = testLine;
-            }
-          }
-          wrappedAddressLines.push(addrLine);
 
-          // Calculate overlay height based on text lines or map size
-          let textHeight = titleSize + 10 + (wrappedAddressLines.length * (textSize + 5)) + ((textSize + 10) * 2);
+          // Helper to wrap long text
+          const wrapText = (text, maxW) => {
+            const words = text.split(' ');
+            const lines = [];
+            let line = '';
+            ctx.font = `${textSize}px sans-serif`;
+            for (let i = 0; i < words.length; i++) {
+              const test = line + words[i] + ' ';
+              if (ctx.measureText(test).width > maxW && i > 0) {
+                lines.push(line.trim());
+                line = words[i] + ' ';
+              } else {
+                line = test;
+              }
+            }
+            lines.push(line.trim());
+            return lines;
+          };
+
+          // Build detailed address lines
+          const addressLines = [];
+
+          // Line 1: Street + Area/Landmark
+          const streetArea = [geo.street, geo.area].filter(Boolean).join(', ');
+          if (streetArea) addressLines.push(...wrapText(streetArea, maxTextWidth));
+
+          // Line 2: City + District + Pincode
+          const cityDistrict = [geo.city, geo.district].filter(Boolean).join(', ');
+          const cityLine = geo.pincode ? `${cityDistrict} - ${geo.pincode}` : cityDistrict;
+          if (cityLine) addressLines.push(...wrapText(cityLine, maxTextWidth));
+
+          // Line 3: State + Country
+          const stateCountry = [geo.state, geo.country].filter(Boolean).join(', ');
+          if (stateCountry) addressLines.push(...wrapText(stateCountry, maxTextWidth));
+
+          // If no structured address, wrap the full display_name
+          if (addressLines.length === 0 && geo.display_name) {
+            addressLines.push(...wrapText(geo.display_name, maxTextWidth));
+          }
+          if (addressLines.length === 0) {
+            addressLines.push('Location unavailable');
+          }
+
+          // Calculate overlay height
+          const lineH = textSize + 5;
+          const coordLineH = textSize + 10;
+          const dateLineH = textSize + 10;
+          let textHeight = titleSize + 12 + (addressLines.length * lineH) + coordLineH + dateLineH;
           let overlayHeight = Math.max(mapSize + padding * 2, textHeight + padding * 2);
           const overlayY = img.height - overlayHeight;
 
-          // Draw dark semi-transparent background
+          // ── Draw dark semi-transparent background ──
           ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
           ctx.fillRect(0, overlayY, img.width, overlayHeight);
 
-          // Draw mock map
+          // ── Draw mock satellite map ──
           const mapX = padding;
           const mapY = overlayY + padding;
           
-          // Draw map background (Google Maps cream color)
-          ctx.fillStyle = '#f4f3f0';
+          // Map background
+          ctx.fillStyle = '#e8e4d8';
           ctx.fillRect(mapX, mapY, mapSize, mapSize);
           
           // Draw map grid (streets)
-          ctx.strokeStyle = '#e0decb';
-          ctx.lineWidth = Math.max(mapSize * 0.05, 3);
-          
-          // horizontal lines
+          ctx.strokeStyle = '#d4cfbf';
+          ctx.lineWidth = Math.max(mapSize * 0.04, 2);
           ctx.beginPath();
           ctx.moveTo(mapX, mapY + mapSize * 0.3);
           ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.3);
           ctx.moveTo(mapX, mapY + mapSize * 0.7);
           ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.7);
-          // vertical lines
           ctx.moveTo(mapX + mapSize * 0.3, mapY);
           ctx.lineTo(mapX + mapSize * 0.3, mapY + mapSize);
           ctx.moveTo(mapX + mapSize * 0.7, mapY);
           ctx.lineTo(mapX + mapSize * 0.7, mapY + mapSize);
           ctx.stroke();
 
-          // Draw a highway (yellow line)
+          // Highway
           ctx.strokeStyle = '#ffeb3b';
-          ctx.lineWidth = Math.max(mapSize * 0.08, 5);
+          ctx.lineWidth = Math.max(mapSize * 0.07, 4);
           ctx.beginPath();
           ctx.moveTo(mapX, mapY + mapSize * 0.5);
           ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.5);
           ctx.stroke();
 
-          // Draw some parks/forests (green rectangles)
+          // Parks
           ctx.fillStyle = '#c8e6c9';
           ctx.fillRect(mapX + mapSize * 0.05, mapY + mapSize * 0.05, mapSize * 0.2, mapSize * 0.2);
-          ctx.fillRect(mapX + mapSize * 0.75, mapY + mapSize * 0.05, mapSize * 0.2, mapSize * 0.25);
-          ctx.fillRect(mapX + mapSize * 0.05, mapY + mapSize * 0.75, mapSize * 0.2, mapSize * 0.2);
+          ctx.fillRect(mapX + mapSize * 0.75, mapY + mapSize * 0.75, mapSize * 0.2, mapSize * 0.2);
 
-          // Draw red Google Maps teardrop marker in center of map
+          // Red pin marker
           const pinX = mapX + mapSize / 2;
-          const pinY = mapY + mapSize / 2;
-          const pinHeight = mapSize * 0.35;
-          
-          ctx.fillStyle = '#ea4335'; // Google Maps Red
+          const pinY2 = mapY + mapSize / 2;
+          const pinH = mapSize * 0.35;
+          ctx.fillStyle = '#ea4335';
           ctx.beginPath();
-          ctx.moveTo(pinX, pinY);
-          ctx.bezierCurveTo(
-            pinX - pinHeight * 0.5, pinY - pinHeight,
-            pinX + pinHeight * 0.5, pinY - pinHeight,
-            pinX, pinY
-          );
+          ctx.moveTo(pinX, pinY2);
+          ctx.bezierCurveTo(pinX - pinH * 0.5, pinY2 - pinH, pinX + pinH * 0.5, pinY2 - pinH, pinX, pinY2);
           ctx.fill();
-          
-          // White circle inside pin
           ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(pinX, pinY - pinHeight * 0.65, pinHeight * 0.2, 0, Math.PI * 2);
+          ctx.arc(pinX, pinY2 - pinH * 0.65, pinH * 0.18, 0, Math.PI * 2);
           ctx.fill();
 
-          // Text styling
+          // "Google" text on map
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = 'rgba(0,0,0,0.4)';
+          ctx.font = `bold ${Math.max(Math.floor(mapSize * 0.1), 8)}px sans-serif`;
+          ctx.fillText('Google', mapX + 3, mapY + mapSize - 5);
+
+          // ── Draw text ──
           ctx.fillStyle = '#ffffff';
           ctx.textBaseline = 'top';
           ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
@@ -196,42 +183,33 @@ const PlantForm = ({ onPlantAdded }) => {
           const textX = padding + mapSize + padding;
           let currentY = overlayY + padding;
 
-          // Title (Short Location)
+          // Title (City, State, Country)
           ctx.font = `bold ${titleSize}px sans-serif`;
-          let shortTitle = "Location";
-          if (geoData && geoData.address) {
-            const addr = geoData.address;
-            const city = addr.city || addr.town || addr.village || addr.suburb || "";
-            const state = addr.state || "";
-            const country = addr.country || "";
-            shortTitle = [city, state, country].filter(Boolean).join(', ') || "Location";
-          } else {
-            const addressParts = addressStr.split(', ');
-            shortTitle = addressParts.slice(-2).join(', ') || "Location";
-          }
-          ctx.fillText(shortTitle, textX, currentY);
-          currentY += titleSize + 10;
+          ctx.fillText(geo.short_title || 'Location', textX, currentY);
+          currentY += titleSize + 12;
 
-          // Full Address
+          // Detailed address lines
           ctx.font = `${textSize}px sans-serif`;
-          for (const line of wrappedAddressLines) {
+          for (const line of addressLines) {
             ctx.fillText(line, textX, currentY);
-            currentY += textSize + 5;
+            currentY += lineH;
           }
           currentY += 5;
 
           // Coordinates
           ctx.fillText(`Lat ${location.lat.toFixed(6)}°  Long ${location.lng.toFixed(6)}°`, textX, currentY);
-          currentY += textSize + 10;
+          currentY += coordLineH;
 
           // Date Time
           ctx.fillText(`${dateStr} ${timeStr} ${timezoneStr}`, textX, currentY);
 
-          // Brand Watermark
-          const brandText = "🌱 GPS Map Camera (Web)";
+          // Brand Watermark (top-right)
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          const brandText = "📍 GPS Map Camera";
           ctx.font = `bold ${textSize}px sans-serif`;
           const brandWidth = ctx.measureText(brandText).width;
-          ctx.fillStyle = '#4ade80'; // Greenish
+          ctx.fillStyle = '#4ade80';
           ctx.fillText(brandText, img.width - brandWidth - padding, overlayY + padding);
 
           canvas.toBlob((blob) => {

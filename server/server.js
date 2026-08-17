@@ -8,6 +8,7 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const plantRoutes = require('./routes/plantRoutes');
+const geocodeRoutes = require('./routes/geocodeRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -88,6 +89,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ========== API ROUTES ==========
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/plants', apiLimiter, plantRoutes);
+app.use('/api/geocode', apiLimiter, geocodeRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
