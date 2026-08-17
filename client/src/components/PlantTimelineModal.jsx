@@ -65,13 +65,20 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
           };
 
           const addressLines = [];
-          const streetArea = [geo.street, geo.area].filter(Boolean).join(', ');
-          if (streetArea) addressLines.push(...wrapText(streetArea, maxTextWidth));
-          const cityDistrict = [geo.city, geo.district].filter(Boolean).join(', ');
-          const cityLine = geo.pincode ? `${cityDistrict} - ${geo.pincode}` : cityDistrict;
-          if (cityLine) addressLines.push(...wrapText(cityLine, maxTextWidth));
-          const stateCountry = [geo.state, geo.country].filter(Boolean).join(', ');
-          if (stateCountry) addressLines.push(...wrapText(stateCountry, maxTextWidth));
+          // Use full_address from the server (structured like GPS Map Camera)
+          if (geo.full_address) {
+            addressLines.push(...wrapText(geo.full_address, maxTextWidth));
+          } else {
+            // Fallback: build from individual fields
+            const streetPart = [geo.house_number, geo.street].filter(Boolean).join(', ');
+            const streetArea = [streetPart, geo.building, geo.area].filter(Boolean).join(', ');
+            if (streetArea) addressLines.push(...wrapText(streetArea, maxTextWidth));
+            const cityDistrict = [geo.city, geo.district].filter(Boolean).join(', ');
+            const cityLine = geo.pincode ? `${cityDistrict} - ${geo.pincode}` : cityDistrict;
+            if (cityLine) addressLines.push(...wrapText(cityLine, maxTextWidth));
+            const stateCountry = [geo.state, geo.country].filter(Boolean).join(', ');
+            if (stateCountry) addressLines.push(...wrapText(stateCountry, maxTextWidth));
+          }
           if (addressLines.length === 0 && geo.display_name) addressLines.push(...wrapText(geo.display_name, maxTextWidth));
           if (addressLines.length === 0) addressLines.push('Location unavailable');
 

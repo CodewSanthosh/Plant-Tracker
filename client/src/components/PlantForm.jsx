@@ -82,21 +82,28 @@ const PlantForm = ({ onPlantAdded }) => {
             return lines;
           };
 
-          // Build detailed address lines
+          // Build detailed address lines using the server's structured full_address
           const addressLines = [];
 
-          // Line 1: Street + Area/Landmark
-          const streetArea = [geo.street, geo.area].filter(Boolean).join(', ');
-          if (streetArea) addressLines.push(...wrapText(streetArea, maxTextWidth));
+          // Use full_address from the server (structured like GPS Map Camera)
+          if (geo.full_address) {
+            addressLines.push(...wrapText(geo.full_address, maxTextWidth));
+          } else {
+            // Fallback: build from individual fields
+            // Line 1: House number + Street + Building/Landmark
+            const streetPart = [geo.house_number, geo.street].filter(Boolean).join(', ');
+            const streetArea = [streetPart, geo.building, geo.area].filter(Boolean).join(', ');
+            if (streetArea) addressLines.push(...wrapText(streetArea, maxTextWidth));
 
-          // Line 2: City + District + Pincode
-          const cityDistrict = [geo.city, geo.district].filter(Boolean).join(', ');
-          const cityLine = geo.pincode ? `${cityDistrict} - ${geo.pincode}` : cityDistrict;
-          if (cityLine) addressLines.push(...wrapText(cityLine, maxTextWidth));
+            // Line 2: City + District + Pincode
+            const cityDistrict = [geo.city, geo.district].filter(Boolean).join(', ');
+            const cityLine = geo.pincode ? `${cityDistrict} - ${geo.pincode}` : cityDistrict;
+            if (cityLine) addressLines.push(...wrapText(cityLine, maxTextWidth));
 
-          // Line 3: State + Country
-          const stateCountry = [geo.state, geo.country].filter(Boolean).join(', ');
-          if (stateCountry) addressLines.push(...wrapText(stateCountry, maxTextWidth));
+            // Line 3: State + Country
+            const stateCountry = [geo.state, geo.country].filter(Boolean).join(', ');
+            if (stateCountry) addressLines.push(...wrapText(stateCountry, maxTextWidth));
+          }
 
           // If no structured address, wrap the full display_name
           if (addressLines.length === 0 && geo.display_name) {
