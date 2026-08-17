@@ -14,22 +14,60 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
   const addWatermark = async (imageFile, location) => {
     return new Promise(async (resolve, reject) => {
       try {
-        let addressStr = "Address not found";
+        let addressStr = "";
         let geoData = null;
         if (location && typeof location.lat === 'number' && typeof location.lng === 'number') {
+
+          // ── Attempt 1: OpenStreetMap Nominatim (requires User-Agent) ──
           try {
-            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&accept-language=en`);
-            const data = await response.json();
-            if (data) {
-              geoData = data;
-              if (data.display_name) {
-                addressStr = data.display_name;
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.lat}&lon=${location.lng}&accept-language=en&zoom=18&addressdetails=1`,
+              { headers: { 'User-Agent': 'PlantTrackerApp/1.0' } }
+            );
+            if (response.ok) {
+              const data = await response.json();
+              if (data && !data.error) {
+                geoData = data;
+                if (data.display_name) addressStr = data.display_name;
               }
             }
           } catch (e) {
-            console.error("Geocoding failed", e);
+            console.warn("Nominatim geocoding failed:", e.message);
+          }
+
+          // ── Attempt 2: BigDataCloud free reverse geocoding ──
+          if (!addressStr) {
+            try {
+              const response = await fetch(
+                `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.lat}&longitude=${location.lng}&localityLanguage=en`
+              );
+              if (response.ok) {
+                const data = await response.json();
+                if (data) {
+                  const city = data.city || data.locality || data.principalSubdivision || "";
+                  const state = data.principalSubdivision || "";
+                  const country = data.countryName || "";
+                  geoData = { address: { city, state, country } };
+                  const parts = [
+                    data.locality, data.city, data.principalSubdivision, data.countryName
+                  ].filter(Boolean);
+                  addressStr = [...new Set(parts)].join(', ');
+                }
+              }
+            } catch (e) {
+              console.warn("BigDataCloud geocoding failed:", e.message);
+            }
+          }
+
+          // ── Attempt 3: Fallback to coordinate string ──
+          if (!addressStr) {
+            addressStr = `Near ${location.lat.toFixed(4)}°N, ${location.lng.toFixed(4)}°E`;
+            geoData = { address: { city: `${location.lat.toFixed(4)}°N, ${location.lng.toFixed(4)}°E`, state: "", country: "" } };
           }
         }
+
+        // Final safety net
+        if (!addressStr) addressStr = "Location unavailable";
 
         const img = new Image();
         img.src = URL.createObjectURL(imageFile);
