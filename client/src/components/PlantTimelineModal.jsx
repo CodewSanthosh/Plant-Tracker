@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import exifr from 'exifr';
 import { addPlantUpdate, reverseGeocode } from '../services/api';
 
 const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
@@ -8,6 +9,10 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [photoMode, setPhotoMode] = useState(null); // 'capture' or 'upload'
+
+  const captureInputRef = useRef(null);
+  const uploadInputRef = useRef(null);
 
   if (!plant) return null;
 
@@ -65,11 +70,9 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
           };
 
           const addressLines = [];
-          // Use full_address from the server (structured like GPS Map Camera)
           if (geo.full_address) {
             addressLines.push(...wrapText(geo.full_address, maxTextWidth));
           } else {
-            // Fallback: build from individual fields
             const streetPart = [geo.house_number, geo.street].filter(Boolean).join(', ');
             const streetArea = [streetPart, geo.building, geo.area].filter(Boolean).join(', ');
             if (streetArea) addressLines.push(...wrapText(streetArea, maxTextWidth));
@@ -146,28 +149,98 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
     });
   };
 
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image must be less than 5MB');
-        return;
+  /**
+   * Determine location from the update photo.
+   * @param {File} file - The image file
+   * @param {string} mode - 'capture' or 'upload'
+   *   - capture: EXIF GPS → device GPS → plant's original location
+   *   - upload: EXIF GPS only → fall back to plant's original location (NOT uploader's device GPS)
+   * @returns {{ lat, lng, source }}
+   */
+  const determineUpdateLocation = async (file, mode) => {
+    // Step 1: Always try EXIF GPS first
+    try {
+      const exifData = await exifr.gps(file);
+      if (exifData && exifData.latitude && exifData.longitude) {
+        return { lat: exifData.latitude, lng: exifData.longitude, source: 'exif' };
       }
-      setImagePreview(URL.createObjectURL(file));
-      setError('');
-      setLoading(true);
-      
+    } catch (exifErr) {
+      console.log('No EXIF GPS found in update photo:', exifErr.message);
+    }
+
+    // Step 2: For captured photos, try device GPS
+    if (mode === 'capture' && navigator.geolocation) {
       try {
-        const watermarkedFile = await addWatermark(file, plant.location);
-        setImage(watermarkedFile);
-        setImagePreview(URL.createObjectURL(watermarkedFile));
-      } catch (err) {
-        console.error("Watermark failed", err);
-        setImage(file);
-      } finally {
-        setLoading(false);
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true, timeout: 5000,
+          });
+        });
+        return { lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'device' };
+      } catch (geoErr) {
+        console.log('Device GPS failed:', geoErr.message);
       }
     }
+
+    // Step 3: Fall back to the plant's original location
+    if (plant.location && plant.location.lat && plant.location.lng) {
+      return { lat: plant.location.lat, lng: plant.location.lng, source: 'plant' };
+    }
+
+    return null;
+  };
+
+  const processUpdateFile = async (file, mode) => {
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be less than 5MB');
+      return;
+    }
+
+    setImagePreview(URL.createObjectURL(file));
+    setError('');
+    setPhotoMode(mode);
+    setLoading(true);
+    
+    try {
+      // Determine location from the update photo itself
+      const loc = await determineUpdateLocation(file, mode);
+      
+      if (loc) {
+        const watermarkedFile = await addWatermark(file, loc);
+        setImage(watermarkedFile);
+        setImagePreview(URL.createObjectURL(watermarkedFile));
+
+        if (loc.source === 'exif') {
+          console.log('Update photo: Using EXIF GPS from photo');
+        } else if (loc.source === 'device') {
+          console.log('Update photo: Using device GPS');
+        } else {
+          console.log('Update photo: Using original plant location as fallback');
+        }
+      } else {
+        // No location at all — still use the photo without watermark
+        setImage(file);
+      }
+    } catch (err) {
+      console.error("Watermark failed", err);
+      setImage(file);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCaptureChange = async (e) => {
+    const file = e.target.files[0];
+    await processUpdateFile(file, 'capture');
+    e.target.value = '';
+  };
+
+  const handleUploadChange = async (e) => {
+    const file = e.target.files[0];
+    await processUpdateFile(file, 'upload');
+    e.target.value = '';
   };
 
   const handleSubmit = async (e) => {
@@ -194,6 +267,7 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
       setDate('');
       setImage(null);
       setImagePreview(null);
+      setPhotoMode(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Error adding update');
     } finally {
@@ -276,12 +350,55 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
               
               <div className="form-group">
                 <label>Update Photo <span className="required">*</span></label>
-                <div className="file-input-wrapper">
-                  <input type="file" id="update-image" accept="image/*" onChange={handleImageChange} className="file-input" />
-                  <label htmlFor="update-image" className="file-input-label">
-                    {image ? image.name : 'Choose an image...'}
-                  </label>
+                <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '0 0 8px 0' }}>
+                  Capture a new photo or upload a geotagged photo from the person at the plant.
+                </p>
+
+                {/* Hidden file inputs */}
+                <input
+                  type="file"
+                  ref={captureInputRef}
+                  style={{ display: 'none' }}
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleCaptureChange}
+                />
+                <input
+                  type="file"
+                  ref={uploadInputRef}
+                  style={{ display: 'none' }}
+                  accept="image/*"
+                  onChange={handleUploadChange}
+                />
+
+                {/* Two action buttons */}
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => captureInputRef.current?.click()}
+                    style={{
+                      flex: '1 1 120px', padding: '10px 14px', fontSize: '0.9rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                      border: photoMode === 'capture' ? '2px solid var(--color-primary)' : undefined,
+                    }}
+                  >
+                    📷 Capture
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => uploadInputRef.current?.click()}
+                    style={{
+                      flex: '1 1 120px', padding: '10px 14px', fontSize: '0.9rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                      border: photoMode === 'upload' ? '2px solid var(--color-primary)' : undefined,
+                    }}
+                  >
+                    📤 Upload
+                  </button>
                 </div>
+
                 {imagePreview && (
                   <div style={{ marginTop: '10px' }}>
                     <img src={imagePreview} alt="Preview" style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }} />
@@ -312,7 +429,7 @@ const PlantTimelineModal = ({ plant, onClose, onUpdateSuccess, canUpdate }) => {
           </div>
           ) : (
             <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-              Only admins can post growth updates to plants.
+              You can only update plants you created.
             </p>
           )}
 

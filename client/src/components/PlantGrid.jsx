@@ -15,9 +15,7 @@ const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, currentUserId, i
         <span className="empty-state__icon">🌿</span>
         <h3 className="empty-state__title">No plants yet</h3>
         <p className="empty-state__text">
-          {isAdmin
-            ? 'Start by adding your first plant using the form above!'
-            : 'No plants have been added yet. Check back later!'}
+          Start by adding your first plant using the form above!
         </p>
       </div>
     );
@@ -25,19 +23,22 @@ const PlantGrid = ({ plants, onDelete, loading, onViewTimeline, currentUserId, i
 
   return (
     <div className="plant-grid" id="plant-grid">
-      {plants.map((plant, index) => (
-        <PlantCard
-          key={plant._id}
-          plant={plant}
-          onDelete={onDelete}
-          onViewTimeline={onViewTimeline}
-          canDelete={isAdmin}
-          index={index}
-        />
-      ))}
+      {plants.map((plant, index) => {
+        // Owner or admin can delete
+        const isOwner = currentUserId && (plant.user === currentUserId || plant.user?._id === currentUserId);
+        return (
+          <PlantCard
+            key={plant._id}
+            plant={plant}
+            onDelete={onDelete}
+            onViewTimeline={onViewTimeline}
+            canDelete={isAdmin || isOwner}
+            index={index}
+          />
+        );
+      })}
     </div>
   );
 };
 
 export default PlantGrid;
-

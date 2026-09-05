@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { getPlants, addPlant, deletePlant, getPlantCount, addPlantUpdate } = require('../controllers/plantController');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 
 // Use memory storage — file buffer is uploaded to Cloudinary in the controller
 const storage = multer.memoryStorage();
@@ -25,14 +25,15 @@ const upload = multer({
   fileFilter,
 });
 
-// All routes are protected
+// All routes are protected (logged-in users only)
 router.get('/', protect, getPlants);
-// Only admins can add a tree
-router.post('/', protect, adminOnly, upload.single('image'), addPlant);
-// Delete is allowed for admins only
-router.delete('/:id', protect, adminOnly, deletePlant);
-// Only admins can post growth updates
-router.post('/:id/updates', protect, adminOnly, upload.single('image'), addPlantUpdate);
+// Any logged-in user can add a plant (plant is owned by the creator)
+router.post('/', protect, upload.single('image'), addPlant);
+// Owner or admin can delete a plant (ownership check in controller)
+router.delete('/:id', protect, deletePlant);
+// Owner or admin can post growth updates (ownership check in controller)
+router.post('/:id/updates', protect, upload.single('image'), addPlantUpdate);
 router.get('/count', protect, getPlantCount);
 
 module.exports = router;
+

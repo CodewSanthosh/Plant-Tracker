@@ -54,6 +54,13 @@ const Dashboard = () => {
     setActiveTimelinePlant(updatedPlant);
   };
 
+  // Check if current user can update a given plant (owner or admin)
+  const canUpdatePlant = (plant) => {
+    if (isAdmin) return true;
+    if (!plant || !user) return false;
+    return plant.user === user._id || plant.user?._id === user._id;
+  };
+
   return (
     <div id="dashboard">
       <Navbar plantCount={plantCount} />
@@ -62,20 +69,17 @@ const Dashboard = () => {
         <div className="dashboard__header">
           <h2 className="dashboard__title">🌍 Track Your Green Impact</h2>
           <p className="dashboard__subtitle">
-            {isAdmin
-              ? 'Every plant counts. Add and monitor your plantation journey.'
-              : 'Browse and explore all planted trees and their growth timelines.'}
+            Every plant counts. Add and monitor your plantation journey.
           </p>
         </div>
 
-        {isAdmin && (
-          <section className="plant-form-section">
-            <h3 className="plant-form-section__title">
-              <span>🌱</span> Add New Plant
-            </h3>
-            <PlantForm onPlantAdded={handlePlantAdded} />
-          </section>
-        )}
+        {/* All logged-in users can add plants */}
+        <section className="plant-form-section">
+          <h3 className="plant-form-section__title">
+            <span>🌱</span> Add New Plant
+          </h3>
+          <PlantForm onPlantAdded={handlePlantAdded} />
+        </section>
 
         <section className="plant-grid-section">
           <h3 className="plant-grid-section__title" style={{ display: 'flex', alignItems: 'center' }}>
@@ -134,7 +138,7 @@ const Dashboard = () => {
           plant={activeTimelinePlant} 
           onClose={() => setActiveTimelinePlant(null)}
           onUpdateSuccess={handleUpdateSuccess}
-          canUpdate={isAdmin}
+          canUpdate={canUpdatePlant(activeTimelinePlant)}
         />
       )}
     </div>

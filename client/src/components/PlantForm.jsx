@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import exifr from 'exifr';
 import { addPlant, reverseGeocode } from '../services/api';
 
@@ -15,6 +15,10 @@ const PlantForm = ({ onPlantAdded }) => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [watermarking, setWatermarking] = useState(false);
+  const [photoMode, setPhotoMode] = useState(null); // 'capture' or 'upload'
+
+  const captureInputRef = useRef(null);
+  const uploadInputRef = useRef(null);
 
   const addWatermark = async (imageFile, location) => {
     return new Promise(async (resolve, reject) => {
@@ -85,27 +89,21 @@ const PlantForm = ({ onPlantAdded }) => {
           // Build detailed address lines using the server's structured full_address
           const addressLines = [];
 
-          // Use full_address from the server (structured like GPS Map Camera)
           if (geo.full_address) {
             addressLines.push(...wrapText(geo.full_address, maxTextWidth));
           } else {
-            // Fallback: build from individual fields
-            // Line 1: House number + Street + Building/Landmark
             const streetPart = [geo.house_number, geo.street].filter(Boolean).join(', ');
             const streetArea = [streetPart, geo.building, geo.area].filter(Boolean).join(', ');
             if (streetArea) addressLines.push(...wrapText(streetArea, maxTextWidth));
 
-            // Line 2: City + District + Pincode
             const cityDistrict = [geo.city, geo.district].filter(Boolean).join(', ');
             const cityLine = geo.pincode ? `${cityDistrict} - ${geo.pincode}` : cityDistrict;
             if (cityLine) addressLines.push(...wrapText(cityLine, maxTextWidth));
 
-            // Line 3: State + Country
             const stateCountry = [geo.state, geo.country].filter(Boolean).join(', ');
             if (stateCountry) addressLines.push(...wrapText(stateCountry, maxTextWidth));
           }
 
-          // If no structured address, wrap the full display_name
           if (addressLines.length === 0 && geo.display_name) {
             addressLines.push(...wrapText(geo.display_name, maxTextWidth));
           }
@@ -129,11 +127,9 @@ const PlantForm = ({ onPlantAdded }) => {
           const mapX = padding;
           const mapY = overlayY + padding;
           
-          // Map background
           ctx.fillStyle = '#e8e4d8';
           ctx.fillRect(mapX, mapY, mapSize, mapSize);
           
-          // Draw map grid (streets)
           ctx.strokeStyle = '#d4cfbf';
           ctx.lineWidth = Math.max(mapSize * 0.04, 2);
           ctx.beginPath();
@@ -147,7 +143,6 @@ const PlantForm = ({ onPlantAdded }) => {
           ctx.lineTo(mapX + mapSize * 0.7, mapY + mapSize);
           ctx.stroke();
 
-          // Highway
           ctx.strokeStyle = '#ffeb3b';
           ctx.lineWidth = Math.max(mapSize * 0.07, 4);
           ctx.beginPath();
@@ -155,12 +150,10 @@ const PlantForm = ({ onPlantAdded }) => {
           ctx.lineTo(mapX + mapSize, mapY + mapSize * 0.5);
           ctx.stroke();
 
-          // Parks
           ctx.fillStyle = '#c8e6c9';
           ctx.fillRect(mapX + mapSize * 0.05, mapY + mapSize * 0.05, mapSize * 0.2, mapSize * 0.2);
           ctx.fillRect(mapX + mapSize * 0.75, mapY + mapSize * 0.75, mapSize * 0.2, mapSize * 0.2);
 
-          // Red pin marker
           const pinX = mapX + mapSize / 2;
           const pinY2 = mapY + mapSize / 2;
           const pinH = mapSize * 0.35;
@@ -174,7 +167,6 @@ const PlantForm = ({ onPlantAdded }) => {
           ctx.arc(pinX, pinY2 - pinH * 0.65, pinH * 0.18, 0, Math.PI * 2);
           ctx.fill();
 
-          // "Google" text on map
           ctx.shadowColor = 'transparent';
           ctx.shadowBlur = 0;
           ctx.fillStyle = 'rgba(0,0,0,0.4)';
@@ -190,12 +182,10 @@ const PlantForm = ({ onPlantAdded }) => {
           const textX = padding + mapSize + padding;
           let currentY = overlayY + padding;
 
-          // Title (City, State, Country)
           ctx.font = `bold ${titleSize}px sans-serif`;
           ctx.fillText(geo.short_title || 'Location', textX, currentY);
           currentY += titleSize + 12;
 
-          // Detailed address lines
           ctx.font = `${textSize}px sans-serif`;
           for (const line of addressLines) {
             ctx.fillText(line, textX, currentY);
@@ -203,14 +193,11 @@ const PlantForm = ({ onPlantAdded }) => {
           }
           currentY += 5;
 
-          // Coordinates
           ctx.fillText(`Lat ${location.lat.toFixed(6)}°  Long ${location.lng.toFixed(6)}°`, textX, currentY);
           currentY += coordLineH;
 
-          // Date Time
           ctx.fillText(`${dateStr} ${timeStr} ${timezoneStr}`, textX, currentY);
 
-          // Brand Watermark (top-right)
           ctx.shadowColor = 'transparent';
           ctx.shadowBlur = 0;
           const brandText = "📍 GPS Map Camera";
@@ -238,21 +225,31 @@ const PlantForm = ({ onPlantAdded }) => {
     });
   };
 
-  const determineLocation = (file) => {
+  /**
+   * Determine location from photo.
+   * @param {File} file - The image file
+   * @param {string} mode - 'capture' or 'upload'
+   *   - capture: try EXIF GPS → then device GPS (user is physically at the plant)
+   *   - upload: EXIF GPS only (photo was taken by someone else, never use uploader's device GPS)
+   * @returns {{ lat, lng, source } | null}
+   */
+  const determineLocation = (file, mode) => {
     return new Promise(async (resolve) => {
+      // Step 1: Always try EXIF GPS first
       try {
         const exifData = await exifr.gps(file);
         if (exifData && exifData.latitude && exifData.longitude) {
-          resolve({ lat: exifData.latitude, lng: exifData.longitude });
+          resolve({ lat: exifData.latitude, lng: exifData.longitude, source: 'exif' });
           return;
         }
       } catch (exifErr) {
         console.log('No EXIF GPS found:', exifErr.message);
       }
 
-      if (navigator.geolocation) {
+      // Step 2: For captured photos only, fall back to device GPS
+      if (mode === 'capture' && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'device' }),
           (err) => {
              console.error("Geolocation error:", err);
              resolve(null);
@@ -260,6 +257,7 @@ const PlantForm = ({ onPlantAdded }) => {
           { enableHighAccuracy: true, timeout: 5000 }
         );
       } else {
+        // For uploaded photos: no EXIF GPS found → return null (manual entry needed)
         resolve(null);
       }
     });
@@ -286,29 +284,49 @@ const PlantForm = ({ onPlantAdded }) => {
     }
   }, [location, originalImage]);
 
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image must be less than 5MB');
-        return;
-      }
-      
-      setOriginalImage(file);
-      setImagePreview(URL.createObjectURL(file));
-      setError('');
-      setGeoStatus('🔍 Scanning photo metadata and fetching location...');
+  const processFile = async (file, mode) => {
+    if (!file) return;
 
-      const loc = await determineLocation(file);
-      if (loc) {
-        setLocation(loc);
-        setGeoStatus('✅ Location detected and watermark applied!');
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be less than 5MB');
+      return;
+    }
+    
+    setOriginalImage(file);
+    setImagePreview(URL.createObjectURL(file));
+    setError('');
+    setPhotoMode(mode);
+    setGeoStatus('🔍 Scanning photo metadata and fetching location...');
+
+    const loc = await determineLocation(file, mode);
+    if (loc) {
+      setLocation({ lat: loc.lat, lng: loc.lng });
+      if (loc.source === 'exif') {
+        setGeoStatus('✅ Location detected from photo GPS data! Watermark applied.');
       } else {
-        // Fallback to Chennai (Anna University) so the user gets a watermark immediately
-        setLocation({ lat: 13.010758, lng: 80.235693 });
-        setGeoStatus('⚠️ GPS sensor unavailable. Applied default Chennai location (edit coordinates below if needed).');
+        setGeoStatus('✅ Location detected from device GPS. Watermark applied!');
+      }
+    } else {
+      // No GPS available — prompt manual entry
+      setLocation(null);
+      if (mode === 'upload') {
+        setGeoStatus('⚠️ This photo has no GPS data embedded. Please enter the location manually below.');
+      } else {
+        setGeoStatus('⚠️ No GPS data available. Please enter the location manually below.');
       }
     }
+  };
+
+  const handleCaptureChange = async (e) => {
+    const file = e.target.files[0];
+    await processFile(file, 'capture');
+    e.target.value = '';
+  };
+
+  const handleUploadChange = async (e) => {
+    const file = e.target.files[0];
+    await processFile(file, 'upload');
+    e.target.value = '';
   };
 
   const resetForm = () => {
@@ -320,6 +338,7 @@ const PlantForm = ({ onPlantAdded }) => {
     setPlantedBy('');
     setLocation(null);
     setGeoStatus('');
+    setPhotoMode(null);
   };
 
   const handleSubmit = async (e) => {
@@ -404,20 +423,58 @@ const PlantForm = ({ onPlantAdded }) => {
         </div>
 
         <div className="form-group">
-          <label htmlFor="plantImage">
-            📸 Capture / Upload Plant Photo <span className="required">*</span>
+          <label>
+            📸 Plant Photo <span className="required">*</span>
           </label>
-          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '0 0 8px 0' }}>
-            Take a photo. If your phone asks, select your preferred Camera app.
+          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '0 0 10px 0' }}>
+            Capture a new photo or upload an existing geotagged photo.
           </p>
+
+          {/* Hidden file inputs */}
           <input
             type="file"
-            id="plantImage"
-            className="form-input"
+            ref={captureInputRef}
+            style={{ display: 'none' }}
             accept="image/jpeg,image/png,image/webp,image/gif"
             capture="environment"
-            onChange={handleImageChange}
+            onChange={handleCaptureChange}
           />
+          <input
+            type="file"
+            ref={uploadInputRef}
+            style={{ display: 'none' }}
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleUploadChange}
+          />
+
+          {/* Two action buttons */}
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => captureInputRef.current?.click()}
+              style={{ 
+                flex: '1 1 140px', padding: '12px 16px', fontSize: '0.95rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                border: photoMode === 'capture' ? '2px solid var(--color-primary)' : undefined,
+              }}
+            >
+              📷 Capture Photo
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => uploadInputRef.current?.click()}
+              style={{
+                flex: '1 1 140px', padding: '12px 16px', fontSize: '0.95rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                border: photoMode === 'upload' ? '2px solid var(--color-primary)' : undefined,
+              }}
+            >
+              📤 Upload Photo
+            </button>
+          </div>
+
           {imagePreview && (
             <div className="plant-form__image-preview">
               <img src={imagePreview} alt="Preview" />
@@ -487,4 +544,3 @@ const PlantForm = ({ onPlantAdded }) => {
 };
 
 export default PlantForm;
-
